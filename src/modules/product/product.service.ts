@@ -20,7 +20,7 @@ export class ProductService {
     });
     return this.productRepository.save(product);
   }
-  async findAll(querydto: GetProductsQueryDto) {
+  async findAll(querydto: GetProductsQueryDto = {}) {
     const {
       page = 1,
       limit = 10,
@@ -30,30 +30,39 @@ export class ProductService {
       maxPrice,
       sortBy = 'createdAt',
       sortOrder = 'DESC',
-    } = querydto;
+    } = querydto || {};
+
     const query = this.productRepository
       .createQueryBuilder('product')
-      .leftJoinAndSelect('product.category', 'product');
+      .leftJoinAndSelect('product.category', 'category');
+
     if (search) {
-      query.andWhere('LOWER(product.name LIKE LOWER(:search)', {
+      query.andWhere('LOWER(product.name) LIKE LOWER(:search)', {
         search: `%${search}%`,
       });
     }
+
     if (categoryId) {
-      query.andWhere('product.categoryId=:categoryId', { categoryId });
+      query.andWhere('product.categoryId = :categoryId', { categoryId });
     }
+
     if (minPrice !== undefined) {
-      query.andWhere('product.price>= :minPrice', { minPrice });
+      query.andWhere('product.price >= :minPrice', { minPrice });
     }
+
     if (maxPrice !== undefined) {
-      query.andWhere('product.price<= :maxPrice', { maxPrice });
+      query.andWhere('product.price <= :maxPrice', { maxPrice });
     }
+
     const upperOrder = sortOrder.toUpperCase() as 'ASC' | 'DESC';
     query.orderBy(`product.${sortBy}`, upperOrder);
+
     const skip = (page - 1) * limit;
     query.skip(skip).take(limit);
+
     const [data, total] = await query.getManyAndCount();
     const pageCount = Math.ceil(total / limit);
+
     return {
       data,
       total,
