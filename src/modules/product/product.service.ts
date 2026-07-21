@@ -1,26 +1,90 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { Product } from './entities/product.entity';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
+import { GetProductsQueryDto } from './dto/get-products-query.dto';
+import { Category } from '../category/entities/category.entity';
 
 @Injectable()
 export class ProductService {
-  create(createProductDto: CreateProductDto) {
-    return 'This action adds a new product';
+  constructor(
+    @InjectRepository(Product)
+    private readonly productRepository: Repository<Product>,
+  ) {}
+  async create(createProductDto: CreateProductDto): Promise<Product> {
+    const product = this.productRepository.create({
+      ...createProductDto,
+      category: { id: createProductDto.categoryId },
+    });
+    return this.productRepository.save(product);
   }
-
-  findAll() {
-    return `This action returns all product`;
+  async findAll(querydto: GetProductsQueryDto) {
+    const {
+      page = 1,
+      limit = 10,
+      search,
+      categoryId,
+      minPrice,
+      maxPrice,
+      sortBy = 'createdAt',
+      sortOrder = 'DESC',
+    } = querydto;
+    const query = this.productRepository
+      .createQueryBuilder('product')
+      .leftJoinAndSelect('product.category', 'product');
+    if (search) {
+      query.andWhere('LOWER(product.name LIKE LOWER(:search)', {
+        search: `%${search}%`,
+      });
+    }
+    if (categoryId) {
+      query.andWhere('product.categoryId=:categoryId', { categoryId });
+    }
+    if (minPrice !== undefined) {
+      query.andWhere('product.price>= :minPrice', { minPrice });
+    }
+    if (maxPrice !== undefined) {
+      query.andWhere('product.price<= :maxPrice', { maxPrice });
+    }
+    const upperOrder = sortOrder.toUpperCase() as 'ASC' | 'DESC';
+    query.orderBy(`product.${sortBy}`, upperOrder);
+    const skip = (page - 1) * limit;
+    query.skip(skip).take(limit);
+    const [data, total] = await query.getManyAndCount();
+    const pageCount = Math.ceil(total / limit);
+    return {
+      data,
+      total,
+      page,
+      pageCount,
+    };
   }
-
-  findOne(id: number) {
-    return `This action returns a #${id} product`;
+  async findOne(id: number): Promise<Product> {
+    const product = await this.productRepository.findOne({
+      where: { id },
+      relations: { category: true },
+    });
+    if (!product) {
+      throw new NotFoundException(`ID-si ${id} olan  məhsul tapılmalıdı`);
+    }
+    return product;
   }
-
-  update(id: number, updateProductDto: UpdateProductDto) {
-    return `This action updates a #${id} product`;
+  async update(
+    id: number,
+    updateProductDto: UpdateProductDto,
+  ): Promise<Product> {
+    const product = await this.findOne(id);
+    if (updateProductDto.categoryId) {
+      product.category = { id: updateProductDto.categoryId } as Category;
+    }
+    Object.assign(product, updateProductDto);
+    return this.productRepository.save(product);
   }
-
-  remove(id: number) {
-    return `This action removes a #${id} product`;
+  async remove(id: number): Promise<{ message: string }> {
+    const product = await this.findOne(id);
+    await this.productRepository.softRemove(product);
+    return { message: 'Məhsul uğurla silindi (Soft Deleted).' };
   }
 }
