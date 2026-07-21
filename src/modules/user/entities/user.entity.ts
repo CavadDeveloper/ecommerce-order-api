@@ -31,6 +31,8 @@ export class User {
   role!: UserRole;
   @OneToMany(() => Address, (address) => address.user)
   addresses!: Address[];
+  @Column({ nullable: true })
+  currentHashedRefreshToken?: string;
   @CreateDateColumn({ name: 'created_at' })
   createdAt!: Date;
   @UpdateDateColumn({ name: 'updated_at' })
