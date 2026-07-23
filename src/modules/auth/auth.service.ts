@@ -94,4 +94,29 @@ export class AuthService {
       currentHashedRefreshToken: hash,
     });
   }
+  async refreshTokens(userId: number, refreshToken: string) {
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+    if (!user || !user.currentHashedRefreshToken) {
+      throw new UnauthorizedException('Giriş qadağandır');
+    }
+    const refreshTokenMatches = await bcrypt.compare(
+      refreshToken,
+      user.currentHashedRefreshToken,
+    );
+    if (!refreshTokenMatches) {
+      throw new UnauthorizedException('Giriş qadağandır');
+    }
+
+    const tokens = await this.getTokens(user.id, user.email, user.role);
+    await this.updateRefreshTokenHash(user.id, tokens.refreshToken);
+
+    return tokens;
+  }
+
+  async logout(userId: number) {
+    await this.userRepository.update(userId, {
+      currentHashedRefreshToken: null,
+    });
+    return { message: 'Uğurla çıxış edildı' };
+  }
 }
