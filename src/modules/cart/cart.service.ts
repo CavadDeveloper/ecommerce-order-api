@@ -51,6 +51,8 @@ export class CartService {
       cartTotal += subtotal;
       return {
         id: item.id,
+        quantity: item.quantity,
+        subtotal: Number(subtotal.toFixed(2)),
         product: {
           id: item.product.id,
           name: item.product.name,
@@ -105,6 +107,7 @@ export class CartService {
     }
     return this.getCart(userId);
   }
+
   async updateCartItem(
     userId: number,
     itemId: number,
@@ -115,6 +118,10 @@ export class CartService {
 
     if (!cartItem) {
       throw new NotFoundException('Səbətdə bu məhsul tapılmadı.');
+    }
+
+    if (updateCartItemDto.quantity < 1) {
+      throw new BadRequestException('Miqdar minimum 1 olmalıdır.');
     }
 
     if (updateCartItemDto.quantity > cartItem.product.stock) {
@@ -128,12 +135,15 @@ export class CartService {
 
     return this.getCart(userId);
   }
+
   async removeCartItem(userId: number, itemId: number) {
     const cart = await this.getOrCreateCart(userId);
     const cartItem = cart.items.find((item) => item.id === Number(itemId));
+
     if (!cartItem) {
       throw new NotFoundException('Səbətdə bu məhsul tapılmadı.');
     }
+
     await this.cartItemRepository.remove(cartItem);
     return this.getCart(userId);
   }
