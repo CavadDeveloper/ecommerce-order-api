@@ -47,8 +47,6 @@ export class CategoryService {
       relations: { children: true },
     });
   }
-
-  // 3. READ (SINGLE)
   async findOne(id: number): Promise<Category> {
     const category = await this.categoryRepository.findOne({
       where: { id },
