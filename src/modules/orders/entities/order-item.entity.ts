@@ -14,7 +14,7 @@ export class OrderItem {
   @ManyToOne(() => Order, (order) => order.items, { onDelete: 'CASCADE' })
   order!: Order;
   @ManyToOne(() => Product, { onDelete: 'SET NULL', nullable: true })
-  prodict!: Product;
+  product!: Product;
   @Column()
   productName!: string;
   @Column({ type: 'decimal', precision: 10, scale: 2 })

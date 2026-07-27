@@ -1,26 +1,143 @@
-import { Injectable } from '@nestjs/common';
-import { CreateOrderDto } from './dto/create-order.dto';
-import { UpdateOrderDto } from './dto/update-order.dto';
+import {
+  Injectable,
+  BadRequestException,
+  NotFoundException,
+  ConflictException,
+} from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository, DataSource } from 'typeorm';
+import { Order } from './entities/order.entity';
+import { Cart } from '../cart/entities/cart.entity';
+import { Product } from '../product/entities/product.entity';
+import { OrderItem } from './entities/order-item.entity';
+import { OrderStatus } from './enums/order-status.enum';
 
 @Injectable()
-export class OrdersService {
-  create(createOrderDto: CreateOrderDto) {
-    return 'This action adds a new order';
-  }
+export class OrderService {
+  constructor(
+    @InjectRepository(Order)
+    private readonly orderRepository: Repository<Order>,
+    private readonly dataSource: DataSource,
+  ) {}
 
-  findAll() {
-    return `This action returns all orders`;
-  }
+  async checkout(userId: number): Promise<Order> {
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
 
-  findOne(id: number) {
-    return `This action returns a #${id} order`;
-  }
+    try {
+      const cart = await queryRunner.manager.findOne(Cart, {
+        where: { user: { id: userId } },
+        relations: { items: { product: true } },
+      });
 
-  update(id: number, updateOrderDto: UpdateOrderDto) {
-    return `This action updates a #${id} order`;
-  }
+      if (!cart || cart.items.length === 0) {
+        throw new BadRequestException('Səbətdə heç bir məhsul yoxdur.');
+      }
 
-  remove(id: number) {
-    return `This action removes a #${id} order`;
+      let totalAmount = 0;
+      const orderItems: OrderItem[] = [];
+      for (const item of cart.items) {
+        const product = await queryRunner.manager.findOne(Product, {
+          where: { id: item.product.id },
+        });
+        if (!product || product.stock < item.quantity) {
+          throw new BadRequestException(
+            `"${item.product.name}" üçün kifayət qədər stok yoxdur. Mövcud stok: ${product?.stock ?? 0}`,
+          );
+        }
+        product.stock -= item.quantity;
+        await queryRunner.manager.save(Product, product);
+        const lineTotal = Number(product.price) * item.quantity;
+        totalAmount += lineTotal;
+
+        const orderItem = queryRunner.manager.create(OrderItem, {
+          productName: product.name,
+          price: Number(product.price),
+          quantity: item.quantity,
+          product: product,
+        });
+
+        orderItems.push(orderItem);
+      }
+      const order = queryRunner.manager.create(Order, {
+        user: { id: userId },
+        status: OrderStatus.PENDING,
+        totalAmount: Number(totalAmount.toFixed(2)),
+        items: orderItems,
+      });
+
+      const savedOrder = await queryRunner.manager.save(Order, order);
+      await queryRunner.manager.delete('cart_items', { cart: { id: cart.id } });
+      await queryRunner.commitTransaction();
+      return savedOrder;
+    } catch (err) {
+      await queryRunner.rollbackTransaction();
+      throw err;
+    } finally {
+      await queryRunner.release();
+    }
+  }
+  async payOrder(userId: number, orderId: number): Promise<Order> {
+    const order = await this.orderRepository.findOne({
+      where: { id: orderId, user: { id: userId } },
+    });
+    if (!order) {
+      throw new NotFoundException('Sifariş Tapılmadı!.');
+    }
+    if (order.status !== OrderStatus.PENDING) {
+      throw new ConflictException(
+        `Yalnız PENDING statusunda olan sifarişlər ödənilə bilər. Cari status: ${order.status}`,
+      );
+    }
+    order.status = OrderStatus.PAID;
+    return this.orderRepository.save(order);
+  }
+  async cancelOrder(userId: number, orderId: number): Promise<Order> {
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+    try {
+      const order = await queryRunner.manager.findOne(Order, {
+        where: { user: { id: userId }, id: orderId },
+        relations: { items: { product: true } },
+      });
+      if (!order) {
+        throw new NotFoundException('Sifariş Tapılmadı.');
+      }
+      if (order.status !== OrderStatus.PENDING) {
+        throw new ConflictException(
+          `Yalnız PENDING statusundakı sifarişlər ləğv edilə bilər. Cari status: ${order.status}`,
+        );
+      }
+      order.status = OrderStatus.CANCELLED;
+      const updateOrder = await queryRunner.manager.save(Order, order);
+      await queryRunner.commitTransaction();
+      return updateOrder;
+    } catch (err) {
+      await queryRunner.rollbackTransaction();
+      console.log('CHECKOUT ERROR:', err);
+      throw err;
+    } finally {
+      await queryRunner.release();
+    }
+  }
+  async getUserOrders(userId: number): Promise<Order[]> {
+    return this.orderRepository.find({
+      where: { user: { id: userId } },
+      order: { createdAt: 'DESC' },
+    });
+  }
+  async getOrderById(userId: number, orderId: number): Promise<Order> {
+    const order = await this.orderRepository.findOne({
+      where: { id: orderId, user: { id: userId } },
+      relations: { items: true },
+    });
+
+    if (!order) {
+      throw new NotFoundException('Sifariş Tapılmadı.');
+    }
+
+    return order;
   }
 }

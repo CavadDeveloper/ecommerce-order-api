@@ -1,34 +1,47 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
-import { OrdersService } from './orders.service';
-import { CreateOrderDto } from './dto/create-order.dto';
-import { UpdateOrderDto } from './dto/update-order.dto';
+import {
+  Controller,
+  Get,
+  Post,
+  Param,
+  ParseIntPipe,
+  HttpCode,
+  HttpStatus,
+} from '@nestjs/common';
+import { OrderService } from './orders.service';
 
 @Controller('orders')
 export class OrdersController {
-  constructor(private readonly ordersService: OrdersService) {}
+  constructor(private readonly orderService: OrderService) {}
 
-  @Post()
-  create(@Body() createOrderDto: CreateOrderDto) {
-    return this.ordersService.create(createOrderDto);
+  @Post('checkout/:userId')
+  async checkout(@Param('userId', ParseIntPipe) userId: number) {
+    return this.orderService.checkout(userId);
   }
-
-  @Get()
-  findAll() {
-    return this.ordersService.findAll();
+  @Post(':id/pay/:userId')
+  @HttpCode(HttpStatus.OK)
+  async payOrder(
+    @Param('userId', ParseIntPipe) userId: number,
+    @Param('id', ParseIntPipe) orderId: number,
+  ) {
+    return this.orderService.payOrder(userId, orderId);
   }
-
-  @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.ordersService.findOne(+id);
+  @Post(':id/cancel/:userId')
+  @HttpCode(HttpStatus.OK)
+  async cancelOrder(
+    @Param('userId', ParseIntPipe) userId: number,
+    @Param('id', ParseIntPipe) orderId: number,
+  ) {
+    return this.orderService.cancelOrder(userId, orderId);
   }
-
-  @Patch(':id')
-  update(@Param('id') id: string, @Body() updateOrderDto: UpdateOrderDto) {
-    return this.ordersService.update(+id, updateOrderDto);
+  @Get('user/:userId')
+  async getUserOrders(@Param('userId', ParseIntPipe) userId: number) {
+    return this.orderService.getUserOrders(userId);
   }
-
-  @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.ordersService.remove(+id);
+  @Get(':id/user/:userId')
+  async getOrderById(
+    @Param('userId', ParseIntPipe) userId: number,
+    @Param('id', ParseIntPipe) orderId: number,
+  ) {
+    return this.orderService.getOrderById(userId, orderId);
   }
 }
