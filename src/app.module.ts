@@ -15,6 +15,7 @@ import { CategoryModule } from './modules/category/category.module';
 import { AddressModule } from './modules/address/address.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { CartModule } from './modules/cart/cart.module';
+import { HealthModule } from './modules/health/health.module';
 import { OrdersModule } from './modules/orders/orders.module';
 
 @Module({
@@ -59,13 +60,13 @@ import { OrdersModule } from './modules/orders/orders.module';
         limit: 100,
       },
     ]),
-
     UserModule,
     ProductModule,
     CategoryModule,
     AddressModule,
     AuthModule,
     CartModule,
+    HealthModule,
     OrdersModule,
   ],
   controllers: [AppController],
