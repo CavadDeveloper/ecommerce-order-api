@@ -7,7 +7,6 @@ import {
   Param,
   ParseIntPipe,
   Delete,
-  Query,
 } from '@nestjs/common';
 import { CartService } from './cart.service';
 import { AddToCartDto } from './dto/add-to-cart.dto';

@@ -7,7 +7,10 @@ import {
   Param,
   Delete,
   Query,
+  ParseIntPipe,
+  UseInterceptors,
 } from '@nestjs/common';
+import { CacheInterceptor, CacheTTL } from '@nestjs/cache-manager';
 import { ProductService } from './product.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
@@ -22,13 +25,17 @@ export class ProductController {
     return this.productService.create(createProductDto);
   }
 
+  @UseInterceptors(CacheInterceptor)
+  @CacheTTL(60000)
   @Get()
   findAll(@Query() queryDto: GetProductsQueryDto) {
     return this.productService.findAll(queryDto);
   }
 
+  @UseInterceptors(CacheInterceptor)
+  @CacheTTL(60000)
   @Get(':id')
-  findOne(@Param('id') id: string) {
+  findOne(@Param('id', ParseIntPipe) id: string) {
     return this.productService.findOne(+id);
   }
 

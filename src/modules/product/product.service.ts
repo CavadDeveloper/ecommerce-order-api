@@ -1,4 +1,6 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, Inject, NotFoundException } from '@nestjs/common';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import type { Cache } from 'cache-manager';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Product } from './entities/product.entity';
@@ -12,12 +14,27 @@ export class ProductService {
   constructor(
     @InjectRepository(Product)
     private readonly productRepository: Repository<Product>,
+    @Inject(CACHE_MANAGER)
+    private readonly cacheManager: Cache,
   ) {}
+  private async clearCacheProduct() {
+    const cache = this.cacheManager as unknown as {
+      reset?: () => Promise<void>;
+      clear?: () => Promise<void>;
+    };
+    if (typeof cache.reset === 'function') {
+      await cache.reset();
+    } else if (typeof cache.clear === 'function') {
+      await cache.clear();
+    }
+  }
+
   async create(createProductDto: CreateProductDto): Promise<Product> {
     const product = this.productRepository.create({
       ...createProductDto,
       category: { id: createProductDto.categoryId },
     });
+    await this.clearCacheProduct();
     return this.productRepository.save(product);
   }
   async findAll(querydto: GetProductsQueryDto = {}) {
@@ -89,11 +106,13 @@ export class ProductService {
       product.category = { id: updateProductDto.categoryId } as Category;
     }
     Object.assign(product, updateProductDto);
+    await this.clearCacheProduct();
     return this.productRepository.save(product);
   }
   async remove(id: number): Promise<{ message: string }> {
     const product = await this.findOne(id);
     await this.productRepository.softRemove(product);
+    await this.clearCacheProduct();
     return { message: 'Məhsul uğurla silindi (Soft Deleted).' };
   }
 }

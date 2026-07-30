@@ -1,6 +1,10 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { CacheModule } from '@nestjs/cache-manager';
+import { EventEmitterModule } from '@nestjs/event-emitter';
+import { ScheduleModule } from '@nestjs/schedule';
+import { ThrottlerModule } from '@nestjs/throttler';
 import * as Joi from 'joi';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -41,18 +45,26 @@ import { OrdersModule } from './modules/orders/orders.module';
       }),
     }),
 
+    CacheModule.register({
+      ttl: 60000,
+      max: 100,
+      isGlobal: true,
+    }),
+    EventEmitterModule.forRoot(),
+    ScheduleModule.forRoot(),
+    ThrottlerModule.forRoot([
+      {
+        ttl: 60000,
+        limit: 100,
+      },
+    ]),
+
     UserModule,
-
     ProductModule,
-
     CategoryModule,
-
     AddressModule,
-
     AuthModule,
-
     CartModule,
-
     OrdersModule,
   ],
   controllers: [AppController],
