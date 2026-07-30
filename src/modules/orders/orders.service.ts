@@ -6,11 +6,13 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Order } from './entities/order.entity';
 import { Cart } from '../cart/entities/cart.entity';
 import { Product } from '../product/entities/product.entity';
 import { OrderItem } from './entities/order-item.entity';
 import { OrderStatus } from './enums/order-status.enum';
+import { OrderCreatedEvent, OrderPaidEvent } from './events/order.events';
 
 @Injectable()
 export class OrderService {
@@ -18,6 +20,7 @@ export class OrderService {
     @InjectRepository(Order)
     private readonly orderRepository: Repository<Order>,
     private readonly dataSource: DataSource,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   async checkout(userId: number): Promise<Order> {
@@ -70,6 +73,10 @@ export class OrderService {
       const savedOrder = await queryRunner.manager.save(Order, order);
       await queryRunner.manager.delete('cart_items', { cart: { id: cart.id } });
       await queryRunner.commitTransaction();
+      this.eventEmitter.emit(
+        'order-created',
+        new OrderCreatedEvent(savedOrder.id, userId, savedOrder.totalAmount),
+      );
       return savedOrder;
     } catch (err) {
       await queryRunner.rollbackTransaction();
@@ -91,6 +98,7 @@ export class OrderService {
       );
     }
     order.status = OrderStatus.PAID;
+    this.eventEmitter.emit('order-paid', new OrderPaidEvent(order.id, userId));
     return this.orderRepository.save(order);
   }
   async cancelOrder(userId: number, orderId: number): Promise<Order> {
