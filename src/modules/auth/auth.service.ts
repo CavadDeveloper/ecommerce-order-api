@@ -119,4 +119,20 @@ export class AuthService {
     });
     return { message: 'Uğurla çıxış edildı' };
   }
+  async refreshToken(userId: number, refreshToken: string) {
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+    if (!user || !user.currentHashedRefreshToken) {
+      throw new UnauthorizedException('Giriş Qadağandır!');
+    }
+    const refreshTokenMatches = await bcrypt.compare(
+      refreshToken,
+      user.currentHashedRefreshToken,
+    );
+    if (!refreshTokenMatches) {
+      throw new UnauthorizedException('Giriş Qadağandır!');
+    }
+    const tokens = await this.getTokens(user.id, user.email, user.role);
+    await this.updateRefreshTokenHash(user.id, tokens.refreshToken);
+    return tokens;
+  }
 }
