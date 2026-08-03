@@ -31,7 +31,7 @@ dotenv — Gizli dəyişənləri (.env) idarə etmək üçün.
 
 Milestone 1 — Core CRUD & Data Model
 1.Entitylərin Qurulması:
--User:İstifadəçilərin qeydiyyatı,rolu(CUSOTMER,ADMİN),şifrə təhlükəsizliyi və refresh token hash-ləri quruldu.
+-User:İstifadəçilərin qeydiyyatı,rolu(CUSTOMER,ADMİN),şifrə təhlükəsizliyi və refresh token hash-ləri quruldu.
 -Product:Məhsul məlumatları,qiyməti,kateqoriyası ilə əlaqələndirildi və sistemə Soft Delete(deletedAt) mexanizmi əlavə edildi.Bu Mexanizm ondan ibarətdirki,silinən məhsullar siyahıdan gizlənilir lakin silinmədən öncə köhnə sifarişlər bazada saxlanılır.
 -Category:Kateqoriyalar  üçün tam CRUD hazırlandı.Öz-özünə referans verən(parentİd) strukturu quruldu maksimum 1 səviyyə dərinlik məhdudiyyəti(alt kateqoriyanında alt kateqoriyası olmayacaq) tətbiq edildi.
 -Address:İstifadəçi ünvanları üçün əlaqələr quruldu
