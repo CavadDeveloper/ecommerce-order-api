@@ -34,8 +34,9 @@ export class ProductService {
       ...createProductDto,
       category: { id: createProductDto.categoryId },
     });
+    const savedProduct = await this.productRepository.save(product);
     await this.clearCacheProduct();
-    return this.productRepository.save(product);
+    return savedProduct;
   }
   async findAll(querydto: GetProductsQueryDto = {}) {
     const {

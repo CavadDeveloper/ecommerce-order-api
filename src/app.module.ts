@@ -5,7 +5,9 @@ import { CacheModule } from '@nestjs/cache-manager';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { BullModule } from '@nestjs/bullmq';
 import { APP_GUARD } from '@nestjs/core';
+import * as redisStore from 'cache-manager-redis-store';
 import * as Joi from 'joi';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -29,6 +31,8 @@ import { OrdersModule } from './modules/orders/orders.module';
         DB_PASSWORD: Joi.string().allow(''),
         DB_NAME: Joi.string().required(),
         PORT: Joi.number().default(3000),
+        REDIS_HOST: Joi.string().default('localhost'),
+        REDIS_PORT: Joi.number().default(6379),
       }),
     }),
 
@@ -47,11 +51,31 @@ import { OrdersModule } from './modules/orders/orders.module';
       }),
     }),
 
-    CacheModule.register({
-      ttl: 60000,
-      max: 100,
+    // Redis Cache inteqrasiyası
+    CacheModule.registerAsync({
       isGlobal: true,
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (configService: ConfigService) => ({
+        store: redisStore,
+        host: configService.get<string>('REDIS_HOST'),
+        port: configService.get<number>('REDIS_PORT'),
+        ttl: 60000,
+      }),
     }),
+
+    // BullMQ (Arxa fon işləri üçün)
+    BullModule.forRootAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (configService: ConfigService) => ({
+        connection: {
+          host: configService.get<string>('REDIS_HOST'),
+          port: configService.get<number>('REDIS_PORT'),
+        },
+      }),
+    }),
+
     EventEmitterModule.forRoot(),
     ScheduleModule.forRoot(),
     ThrottlerModule.forRoot([
