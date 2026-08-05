@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Address } from './entities/address.entity';
@@ -24,7 +28,7 @@ export class AddressService {
     return this.addressRepository.find({ relations: { user: true } });
   }
 
-  async findOne(id: number) {
+  async findOne(id: number, userId?: number, userRole?: string) {
     const address = await this.addressRepository.findOne({
       where: { id },
       relations: { user: true },
@@ -32,17 +36,27 @@ export class AddressService {
     if (!address) {
       throw new NotFoundException(`ID-si ${id} olan unvan tapilmadi`);
     }
+
+    if (userRole !== 'ADMIN' && address.user.id !== userId) {
+      throw new ForbiddenException('Bu ünvana baxmaq icazəniz yoxdur.');
+    }
+
     return address;
   }
 
-  async update(id: number, updateAddressDto: UpdateAddressDto) {
-    await this.findOne(id);
+  async update(
+    id: number,
+    updateAddressDto: UpdateAddressDto,
+    userId: number,
+    userRole: string,
+  ) {
+    await this.findOne(id, userId, userRole);
     await this.addressRepository.update(id, updateAddressDto);
-    return this.findOne(id);
+    return this.findOne(id, userId, userRole);
   }
 
-  async remove(id: number) {
-    const address = await this.findOne(id);
+  async remove(id: number, userId: number, userRole: string) {
+    const address = await this.findOne(id, userId, userRole);
     return this.addressRepository.remove(address);
   }
 }

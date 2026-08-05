@@ -10,6 +10,7 @@ import {
 import { User } from 'src/modules/user/entities/user.entity';
 import { OrderStatus } from '../enums/order-status.enum';
 import { OrderItem } from './order-item.entity';
+import { Address } from 'src/modules/address/entities/address.entity';
 @Entity('orders')
 export class Order {
   @PrimaryGeneratedColumn()
@@ -26,6 +27,8 @@ export class Order {
   totalAmount!: number;
   @OneToMany(() => OrderItem, (item) => item.order, { cascade: true })
   items!: OrderItem[];
+  @ManyToOne(() => Address, { nullable: true, onDelete: 'SET NULL' })
+  address!: Address;
   @CreateDateColumn()
   createdAt!: Date;
   @UpdateDateColumn()

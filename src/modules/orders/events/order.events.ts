@@ -11,3 +11,15 @@ export class OrderPaidEvent {
     public readonly userId: number,
   ) {}
 }
+export class OrderShippedEvent {
+  constructor(
+    public readonly orderId: number,
+    public readonly userId: number,
+  ) {}
+}
+export class OrderDeliveredEvent {
+  constructor(
+    public readonly orderId: number,
+    public readonly userId: number,
+  ) {}
+}

@@ -1,6 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
-import { OrderCreatedEvent, OrderPaidEvent } from '../events/order.events';
+import {
+  OrderCreatedEvent,
+  OrderPaidEvent,
+  OrderShippedEvent,
+  OrderDeliveredEvent,
+} from '../events/order.events';
 @Injectable()
 export class OrderListener {
   constructor() {
@@ -16,6 +21,18 @@ export class OrderListener {
   handleOrderPaid(event: OrderPaidEvent) {
     console.log(
       `Sifariş Ödənildi! OrderId:${event.orderId} UserId:${event.userId}`,
+    );
+  }
+  @OnEvent('order-shipped')
+  handleOrderShipped(event: OrderShippedEvent) {
+    console.log(
+      `Sifariş Yola Düşdü! OrderId:${event.orderId} UserId:${event.userId}`,
+    );
+  }
+  @OnEvent('order-delivered')
+  handleOrderDelivered(event: OrderDeliveredEvent) {
+    console.log(
+      `Sifariş Çatdırıldı! OrderId:${event.orderId} UserId:${event.userId}`,
     );
   }
 }

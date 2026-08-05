@@ -20,34 +20,43 @@ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 @ApiTags('Address')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles('ADMIN')
 @Controller('address')
 export class AddressController {
   constructor(private readonly addressService: AddressService) {}
 
   @Post()
   create(@Req() req: any, @Body() createAddressDto: CreateAddressDto) {
-    const userId = req.user.id;
+    const userId = req.user.userId;
     return this.addressService.create(userId, createAddressDto);
   }
-
+  @Roles('ADMIN')
   @Get()
   findAll() {
     return this.addressService.findAll();
   }
-
+  @Roles('ADMIN')
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.addressService.findOne(+id);
+  findOne(@Req() req: any, @Param('id') id: string) {
+    const userId = req.user.userId;
+    const userRole = req.user.roles;
+    return this.addressService.findOne(+id, userId, userRole);
   }
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() updateAddressDto: UpdateAddressDto) {
-    return this.addressService.update(+id, updateAddressDto);
+  update(
+    @Req() req: any,
+    @Param('id') id: string,
+    @Body() updateAddressDto: UpdateAddressDto,
+  ) {
+    const userId = req.user.userId;
+    const userRole = req.user.roles;
+    return this.addressService.update(+id, updateAddressDto, userId, userRole);
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.addressService.remove(+id);
+  remove(@Req() req: any, @Param('id') id: string) {
+    const userId = req.user.userId;
+    const userRole = req.user.roles;
+    return this.addressService.remove(+id, userId, userRole);
   }
 }

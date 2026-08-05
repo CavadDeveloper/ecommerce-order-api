@@ -12,8 +12,14 @@ import { Cart } from '../cart/entities/cart.entity';
 import { Product } from '../product/entities/product.entity';
 import { OrderItem } from './entities/order-item.entity';
 import { OrderStatus } from './enums/order-status.enum';
-import { OrderCreatedEvent, OrderPaidEvent } from './events/order.events';
-
+import {
+  OrderCreatedEvent,
+  OrderDeliveredEvent,
+  OrderPaidEvent,
+  OrderShippedEvent,
+} from './events/order.events';
+import { Address } from '../address/entities/address.entity';
+import { CreateOrderDto } from './dto/create-order.dto';
 @Injectable()
 export class OrderService {
   constructor(
@@ -23,7 +29,10 @@ export class OrderService {
     private readonly eventEmitter: EventEmitter2,
   ) {}
 
-  async checkout(userId: number): Promise<Order> {
+  async checkout(
+    userId: number,
+    createOrderDto: CreateOrderDto,
+  ): Promise<Order> {
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
@@ -63,8 +72,14 @@ export class OrderService {
 
         orderItems.push(orderItem);
       }
+      const address = queryRunner.manager.create(Address, {
+        ...createOrderDto.address,
+        user: { id: userId },
+      });
+      const savedAddress = await queryRunner.manager.save(Address, address);
       const order = queryRunner.manager.create(Order, {
         user: { id: userId },
+        address: savedAddress,
         status: OrderStatus.PENDING,
         totalAmount: Number(totalAmount.toFixed(2)),
         items: orderItems,
@@ -85,6 +100,42 @@ export class OrderService {
       await queryRunner.release();
     }
   }
+  private scheduleStatusUpdates(orderId: number) {
+    const delay = 5 * 1000;
+
+    setTimeout(() => {
+      (async () => {
+        const order = await this.orderRepository.findOne({
+          where: { id: orderId },
+          relations: { user: true },
+        });
+        if (order && order.status === OrderStatus.PAID) {
+          order.status = OrderStatus.SHIPPED;
+          await this.orderRepository.save(order);
+          this.eventEmitter.emit(
+            'order-shipped',
+            new OrderShippedEvent(order.id, order.user.id),
+          );
+          setTimeout(() => {
+            (async () => {
+              const shippedOrder = await this.orderRepository.findOne({
+                where: { id: orderId },
+                relations: { user: true },
+              });
+              if (shippedOrder && shippedOrder.status === OrderStatus.SHIPPED) {
+                shippedOrder.status = OrderStatus.DELIVERED;
+                await this.orderRepository.save(shippedOrder);
+                this.eventEmitter.emit(
+                  'order-delivered',
+                  new OrderDeliveredEvent(order.id, order.user.id),
+                );
+              }
+            })();
+          }, delay);
+        }
+      })();
+    }, delay);
+  }
   async payOrder(userId: number, orderId: number): Promise<Order> {
     const order = await this.orderRepository.findOne({
       where: { id: orderId, user: { id: userId } },
@@ -98,6 +149,8 @@ export class OrderService {
       );
     }
     order.status = OrderStatus.PAID;
+    const savedOrder = await this.orderRepository.save(order);
+    this.scheduleStatusUpdates(savedOrder.id);
     this.eventEmitter.emit('order-paid', new OrderPaidEvent(order.id, userId));
     return this.orderRepository.save(order);
   }
@@ -133,13 +186,20 @@ export class OrderService {
   async getUserOrders(userId: number): Promise<Order[]> {
     return this.orderRepository.find({
       where: { user: { id: userId } },
+      relations: {
+        address: true,
+      },
       order: { createdAt: 'DESC' },
     });
   }
+
   async getOrderById(userId: number, orderId: number): Promise<Order> {
     const order = await this.orderRepository.findOne({
       where: { id: orderId, user: { id: userId } },
-      relations: { items: true },
+      relations: {
+        items: true,
+        address: true,
+      },
     });
 
     if (!order) {
