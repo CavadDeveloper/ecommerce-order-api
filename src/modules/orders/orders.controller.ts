@@ -4,6 +4,7 @@ import {
   Post,
   Param,
   Body,
+  Headers,
   ParseIntPipe,
   HttpCode,
   HttpStatus,
@@ -22,14 +23,17 @@ export class OrdersController {
   ) {
     return this.orderService.checkout(userId, createOrderDto);
   }
+
   @Post(':id/pay/:userId')
   @HttpCode(HttpStatus.OK)
   async payOrder(
     @Param('userId', ParseIntPipe) userId: number,
     @Param('id', ParseIntPipe) orderId: number,
+    @Headers('idempotency-key') idempotencyKey: string,
   ) {
-    return this.orderService.payOrder(userId, orderId);
+    return this.orderService.payOrder(userId, orderId, idempotencyKey);
   }
+
   @Post(':id/cancel/:userId')
   @HttpCode(HttpStatus.OK)
   async cancelOrder(
@@ -38,10 +42,12 @@ export class OrdersController {
   ) {
     return this.orderService.cancelOrder(userId, orderId);
   }
+
   @Get('user/:userId')
   async getUserOrders(@Param('userId', ParseIntPipe) userId: number) {
     return this.orderService.getUserOrders(userId);
   }
+
   @Get(':id/user/:userId')
   async getOrderById(
     @Param('userId', ParseIntPipe) userId: number,

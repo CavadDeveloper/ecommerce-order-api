@@ -18,7 +18,7 @@ export class OrderCronService {
 
   @Cron(CronExpression.EVERY_5_SECONDS)
   async handleUnpaidOrders() {
-    const tenMinutesAgo = new Date(Date.now() - 20 * 1000);
+    const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
 
     const expiredOrders = await this.orderRepository.find({
       where: {

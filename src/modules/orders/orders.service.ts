@@ -8,6 +8,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Order } from './entities/order.entity';
+import { InjectQueue } from '@nestjs/bullmq';
 import { Cart } from '../cart/entities/cart.entity';
 import { Product } from '../product/entities/product.entity';
 import { OrderItem } from './entities/order-item.entity';
@@ -20,13 +21,16 @@ import {
 } from './events/order.events';
 import { Address } from '../address/entities/address.entity';
 import { CreateOrderDto } from './dto/create-order.dto';
+import { Queue } from 'bullmq';
 @Injectable()
 export class OrderService {
+  private readonly idempotentyCache = new Map<string, any>();
   constructor(
     @InjectRepository(Order)
     private readonly orderRepository: Repository<Order>,
     private readonly dataSource: DataSource,
     private readonly eventEmitter: EventEmitter2,
+    @InjectQueue('payment-queue') private readonly paymentQueue: Queue,
   ) {}
 
   async checkout(
@@ -136,7 +140,18 @@ export class OrderService {
       })();
     }, delay);
   }
-  async payOrder(userId: number, orderId: number): Promise<Order> {
+  async payOrder(
+    userId: number,
+    orderId: number,
+    idempotencyKey?: string,
+  ): Promise<any> {
+    if (idempotencyKey && this.idempotentyCache.has(idempotencyKey)) {
+      return {
+        message:
+          'Bu ödəniş əməliyyatı artıq icra edilib (Idempotency-Key təkrarlandı).',
+        result: this.idempotentyCache.get(idempotencyKey),
+      };
+    }
     const order = await this.orderRepository.findOne({
       where: { id: orderId, user: { id: userId } },
     });
@@ -147,6 +162,27 @@ export class OrderService {
       throw new ConflictException(
         `Yalnız PENDING statusunda olan sifarişlər ödənilə bilər. Cari status: ${order.status}`,
       );
+    }
+    await this.paymentQueue.add(
+      'process-payment',
+      {
+        orderId,
+        userId,
+      },
+      {
+        attempts: 3,
+        backoff: {
+          type: 'exponential',
+          delay: 2000,
+        },
+      },
+    );
+    const responsePayload = {
+      message: 'Ödəniş sorğusu növbəyə qəbul edildi, arxa fonda emal olunur.',
+      orderId,
+    };
+    if (idempotencyKey) {
+      this.idempotentyCache.set(idempotencyKey, responsePayload);
     }
     order.status = OrderStatus.PAID;
     const savedOrder = await this.orderRepository.save(order);
