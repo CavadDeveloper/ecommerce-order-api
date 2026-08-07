@@ -6,6 +6,7 @@ import { Logger } from '@nestjs/common';
 import { Order } from '../entities/order.entity';
 import { OrderStatus } from '../enums/order-status.enum';
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import { MailService } from 'src/mail/mail.service';
 import { OrderPaidEvent } from '../events/order.events';
 
 @Processor('payment-queue')
@@ -16,6 +17,7 @@ export class PaymentProcessor extends WorkerHost {
     @InjectRepository(Order)
     private readonly orderRepository: Repository<Order>,
     private readonly eventEmitter: EventEmitter2,
+    private readonly mailService: MailService,
   ) {
     super();
   }
@@ -34,13 +36,26 @@ export class PaymentProcessor extends WorkerHost {
 
     const order = await this.orderRepository.findOne({
       where: { id: orderId },
-      relations: { user: true },
+      relations: { user: true, address: true },
     });
+
+    console.log('TAPILAN ORDER VƏ ÜNVAN:', order);
 
     if (order && order.status === OrderStatus.PENDING) {
       order.status = OrderStatus.PAID;
       await this.orderRepository.save(order);
       this.logger.log(`Sifariş #${orderId} uğurla ödənildi.`);
+    }
+    if (order?.user && order.user.email) {
+      const fullAddress = order.address
+        ? `${order.address.addressLine}, ${order.address.city}`
+        : 'Göstərilməyib';
+      await this.mailService.sendOrderConfirmation(order.user.email, {
+        orderId: orderId,
+        items: 'Səbətdəki Məhsullar',
+        total: order.totalAmount || 0,
+        address: fullAddress,
+      });
     }
 
     if (order) {

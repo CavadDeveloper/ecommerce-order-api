@@ -19,7 +19,8 @@ import { AuthModule } from './modules/auth/auth.module';
 import { CartModule } from './modules/cart/cart.module';
 import { HealthModule } from './modules/health/health.module';
 import { OrdersModule } from './modules/orders/orders.module';
-
+import { MailModule } from './mail/mail.module';
+import { PaymentModule } from './modules/orders/processors/payment.module';
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -50,8 +51,6 @@ import { OrdersModule } from './modules/orders/orders.module';
         synchronize: true,
       }),
     }),
-
-    // Redis Cache inteqrasiyası
     CacheModule.registerAsync({
       isGlobal: true,
       imports: [ConfigModule],
@@ -63,8 +62,6 @@ import { OrdersModule } from './modules/orders/orders.module';
         ttl: 60000,
       }),
     }),
-
-    // BullMQ (Arxa fon işləri üçün)
     BullModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
@@ -92,6 +89,8 @@ import { OrdersModule } from './modules/orders/orders.module';
     CartModule,
     HealthModule,
     OrdersModule,
+    MailModule,
+    PaymentModule,
   ],
   controllers: [AppController],
   providers: [
