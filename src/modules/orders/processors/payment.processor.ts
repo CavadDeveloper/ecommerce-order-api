@@ -71,7 +71,6 @@ export class PaymentProcessor extends WorkerHost {
         );
       }
     }
-
     return { success: true, orderId };
   }
 }

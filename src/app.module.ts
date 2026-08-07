@@ -21,6 +21,7 @@ import { HealthModule } from './modules/health/health.module';
 import { OrdersModule } from './modules/orders/orders.module';
 import { MailModule } from './mail/mail.module';
 import { PaymentModule } from './modules/orders/processors/payment.module';
+import { FilesModule } from './files/files.module';
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -91,6 +92,7 @@ import { PaymentModule } from './modules/orders/processors/payment.module';
     OrdersModule,
     MailModule,
     PaymentModule,
+    FilesModule,
   ],
   controllers: [AppController],
   providers: [
