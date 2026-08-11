@@ -22,6 +22,7 @@ import { OrdersModule } from './modules/orders/orders.module';
 import { MailModule } from './mail/mail.module';
 import { PaymentModule } from './modules/orders/processors/payment.module';
 import { FilesModule } from './files/files.module';
+import { ReservationsModule } from './reservations/reservations.module';
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -93,6 +94,7 @@ import { FilesModule } from './files/files.module';
     MailModule,
     PaymentModule,
     FilesModule,
+    ReservationsModule,
   ],
   controllers: [AppController],
   providers: [
