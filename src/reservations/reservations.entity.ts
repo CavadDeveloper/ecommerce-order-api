@@ -9,14 +9,14 @@ import {
 import { User } from 'src/modules/user/entities/user.entity';
 @Entity('reservations')
 export class Reservation {
-  @PrimaryGeneratedColumn('uuid')
-  id!: string;
+  @PrimaryGeneratedColumn()
+  id!: number;
   @Column()
   status!: string;
   @ManyToOne(() => User, { onDelete: 'CASCADE' })
   user!: User;
   @Column()
-  userId!: string;
+  userId!: number;
   @CreateDateColumn()
   createdAt!: Date;
   @UpdateDateColumn()

@@ -10,11 +10,11 @@ export class ReservationsController {
     return this.reservationsService.create(createReservationDto);
   }
   @Get('user/:userId')
-  findActiveByUser(@Param('userId') userId: string) {
+  findActiveByUser(@Param('userId') userId: number) {
     return this.reservationsService.findActiveByUser(userId);
   }
   @Delete(':id/cancel')
-  cancel(@Param('id') id: string) {
+  cancel(@Param('id') id: number) {
     return this.reservationsService.cancel(id);
   }
 }

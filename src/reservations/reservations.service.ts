@@ -10,6 +10,7 @@ export class ReservationsService {
     @InjectRepository(Reservation)
     private readonly reservationRepository: Repository<Reservation>,
   ) {}
+
   async create(
     createReservationDto: CreateReservationDto,
   ): Promise<Reservation> {
@@ -19,7 +20,8 @@ export class ReservationsService {
     });
     return await this.reservationRepository.save(reservation);
   }
-  async findActiveByUser(userId: string): Promise<Reservation> {
+
+  async findActiveByUser(userId: number): Promise<Reservation> {
     const reservation = await this.reservationRepository.findOne({
       where: { userId, status: 'Pending' },
     });
@@ -28,7 +30,8 @@ export class ReservationsService {
     }
     return reservation;
   }
-  async cancel(id: string): Promise<Reservation> {
+
+  async cancel(id: number): Promise<Reservation> {
     const reservation = await this.reservationRepository.findOne({
       where: { id },
     });

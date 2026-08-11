@@ -23,6 +23,7 @@ import { MailModule } from './mail/mail.module';
 import { PaymentModule } from './modules/orders/processors/payment.module';
 import { FilesModule } from './files/files.module';
 import { ReservationsModule } from './reservations/reservations.module';
+import { InvoicesModule } from './invoices/invoices.module';
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -95,6 +96,7 @@ import { ReservationsModule } from './reservations/reservations.module';
     PaymentModule,
     FilesModule,
     ReservationsModule,
+    InvoicesModule,
   ],
   controllers: [AppController],
   providers: [
