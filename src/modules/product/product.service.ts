@@ -17,6 +17,7 @@ export class ProductService {
     @Inject(CACHE_MANAGER)
     private readonly cacheManager: Cache,
   ) {}
+
   private async clearCacheProduct() {
     const cache = this.cacheManager as unknown as {
       reset?: () => Promise<void>;
@@ -38,7 +39,15 @@ export class ProductService {
     await this.clearCacheProduct();
     return savedProduct;
   }
+
   async findAll(querydto: GetProductsQueryDto = {}) {
+    const cacheKey = `products_list_${JSON.stringify(querydto)}`;
+
+    const cachedData = await this.cacheManager.get(cacheKey);
+    if (cachedData) {
+      return cachedData;
+    }
+
     const {
       page = 1,
       limit = 10,
@@ -81,14 +90,24 @@ export class ProductService {
     const [data, total] = await query.getManyAndCount();
     const pageCount = Math.ceil(total / limit);
 
-    return {
+    const result = {
       data,
       total,
       page,
       pageCount,
     };
+
+    await this.cacheManager.set(cacheKey, result, 60000);
+
+    return result;
   }
   async findOne(id: number): Promise<Product> {
+    const cacheKey = `product_detail_${id}`;
+    const cachedProduct = await this.cacheManager.get<Product>(cacheKey);
+    if (cachedProduct) {
+      return cachedProduct;
+    }
+
     const product = await this.productRepository.findOne({
       where: { id },
       relations: { category: true },
@@ -96,8 +115,10 @@ export class ProductService {
     if (!product) {
       throw new NotFoundException(`ID-si ${id} olan  məhsul tapılmalıdı`);
     }
+    await this.cacheManager.set(cacheKey, product, 60000);
     return product;
   }
+
   async update(
     id: number,
     updateProductDto: UpdateProductDto,
@@ -107,9 +128,11 @@ export class ProductService {
       product.category = { id: updateProductDto.categoryId } as Category;
     }
     Object.assign(product, updateProductDto);
+    const updatedProduct = await this.productRepository.save(product);
     await this.clearCacheProduct();
-    return this.productRepository.save(product);
+    return updatedProduct;
   }
+
   async remove(id: number): Promise<{ message: string }> {
     const product = await this.findOne(id);
     await this.productRepository.softRemove(product);

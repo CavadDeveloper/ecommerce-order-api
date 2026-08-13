@@ -24,6 +24,7 @@ import { PaymentModule } from './modules/orders/processors/payment.module';
 import { FilesModule } from './files/files.module';
 import { ReservationsModule } from './reservations/reservations.module';
 import { InvoicesModule } from './invoices/invoices.module';
+import { EventsGateway } from './modules/orders/events/order.gateway';
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -101,6 +102,7 @@ import { InvoicesModule } from './invoices/invoices.module';
   controllers: [AppController],
   providers: [
     AppService,
+    EventsGateway,
     {
       provide: APP_GUARD,
       useClass: ThrottlerGuard,

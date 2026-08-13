@@ -90,4 +90,14 @@ export class FilesService {
 
     await this.fileRepository.remove(fileEntity);
   }
+  async findAll(): Promise<FileEntity[]> {
+    return await this.fileRepository.find();
+  }
+  async findOne(id: number): Promise<FileEntity> {
+    const file = await this.fileRepository.findOne({ where: { id } });
+    if (!file) {
+      throw new NotFoundException('Fayl Tapılmadı!');
+    }
+    return file;
+  }
 }
