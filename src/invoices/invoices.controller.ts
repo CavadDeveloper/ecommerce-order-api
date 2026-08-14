@@ -1,12 +1,4 @@
-import {
-  Controller,
-  Get,
-  Param,
-  Res,
-  Req,
-  ForbiddenException,
-  UseGuards,
-} from '@nestjs/common';
+import { Controller, Get, Param, Res, Req, UseGuards } from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
@@ -17,24 +9,20 @@ import { RolesGuard } from 'src/modules/auth/guards/roles.guard';
 import { InvoicesService } from './invoices.service';
 import type { Response, Request } from 'express';
 import { JwtAuthGuard } from 'src/modules/auth/guards/jwt-auth.guard';
+
 interface RequestWithUser extends Request {
   user?: {
-    id: number;
+    userId: number;
     role: string;
   };
 }
 
-@ApiBearerAuth('access-token')
+@ApiBearerAuth()
 @ApiTags('Invoices')
 @Controller('invoices')
 export class InvoicesController {
   constructor(private readonly invoicesService: InvoicesService) {}
-  // @Get()
-  // async findAll(@Req() req: RequestWithUser) {
-  //   const user = req.user as any;
-  //   return this.invoicesService.findAll();
-  // }
- 
+
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Get('order/:orderId')
   @ApiOperation({ summary: 'Sifariş üçün yaradılmış fakturanı endirmək' })
@@ -48,15 +36,11 @@ export class InvoicesController {
     @Req() req: RequestWithUser,
     @Res() res: Response,
   ) {
-    console.log(req.user?.role, 'Salam');
-    const orderUserId = await this.invoicesService.getUserIdByOrderId(orderId);
     const user = req.user;
-
-    if (user && user.role !== 'admin' && orderUserId !== user.id) {
-      throw new ForbiddenException('Bu fakturanı endirməyə icazəniz yoxdur.');
-    }
-
-    const invoiceData = await this.invoicesService.downloadInvoice(orderId);
+    const invoiceData = await this.invoicesService.validateAndGetInvoice(
+      orderId,
+      user as { userId: number; role: string },
+    );
 
     res.setHeader('Content-Type', 'text/plain');
     res.setHeader(

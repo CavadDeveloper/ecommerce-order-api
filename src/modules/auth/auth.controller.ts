@@ -55,7 +55,7 @@ export class AuthController {
     },
   })
   refreshTokens(@Body() dto: { userId: number; refreshToken: string }) {
-    return this.authService.refreshTokens(dto.userId, dto.refreshToken);
+    return this.authService.refreshTokens(Number(dto.userId), dto.refreshToken);
   }
   @Post('logout')
   @UseGuards(JwtAuthGuard)

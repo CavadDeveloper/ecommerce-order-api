@@ -9,6 +9,7 @@ import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { FileEntity } from './files.entity';
 import * as fs from 'fs/promises';
+import * as fsSync from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
 
@@ -99,5 +100,12 @@ export class FilesService {
       throw new NotFoundException('Fayl Tapılmadı!');
     }
     return file;
+  }
+  async getFilePathForDownload(id: number): Promise<string> {
+    const fileEntity = await this.findOne(id);
+    if (!fsSync.existsSync(fileEntity.path)) {
+      throw new NotFoundException('Fiziki Fayll Diskdə Tapılmadı');
+    }
+    return fileEntity.path;
   }
 }

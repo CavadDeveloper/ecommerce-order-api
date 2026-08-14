@@ -28,11 +28,12 @@ export class ReservationsService {
     await queryRunner.connect();
     await queryRunner.startTransaction();
     try {
-      // ESLint xətalarını aradan qaldırmaq üçün tipləndirmə səliqələşdirildi
       const dto = createReservationDto as Record<string, any>;
-      const userId: number = dto.userId;
-      const productId: number = dto.productId ?? dto.details?.productId;
-      const quantity: number = dto.quantity ?? dto.details?.quantity ?? 1;
+      const userId: number = Number(dto.userId);
+      const productId: number = Number(dto.productId ?? dto.details?.productId);
+      const quantity: number = Number(
+        dto.quantity ?? dto.details?.quantity ?? 1,
+      );
 
       const existingActive = await queryRunner.manager.findOne(Reservation, {
         where: { userId, status: 'Pending' },
@@ -78,7 +79,7 @@ export class ReservationsService {
 
   async findActiveByUser(userId: number): Promise<Reservation> {
     const reservation = await this.reservationRepository.findOne({
-      where: { userId, status: 'Pending' },
+      where: { userId: Number(userId), status: 'Pending' },
     });
     if (!reservation) {
       throw new NotFoundException('Active rezervasiyası yoxdur bu userin!');
@@ -88,7 +89,7 @@ export class ReservationsService {
 
   async cancel(id: number): Promise<Reservation> {
     const reservation = await this.reservationRepository.findOne({
-      where: { id },
+      where: { id: Number(id) },
     });
 
     if (!reservation) {
@@ -111,7 +112,7 @@ export class ReservationsService {
 
   async payReservation(id: number, userId: number): Promise<Reservation> {
     const reservation = await this.reservationRepository.findOne({
-      where: { id, userId },
+      where: { id: Number(id), userId: Number(userId) },
     });
     if (!reservation) {
       throw new NotFoundException('Rezervasiya Tapılmadı');

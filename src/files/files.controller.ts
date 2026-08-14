@@ -7,7 +7,6 @@ import {
   Get,
   Param,
   Res,
-  NotFoundException,
   UseGuards,
 } from '@nestjs/common';
 import { FilesService } from './files.service';
@@ -15,8 +14,6 @@ import { FileEntity } from './files.entity';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiBody, ApiConsumes, ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import type { Response } from 'express';
-import * as fs from 'fs';
-
 import { JwtAuthGuard } from 'src/modules/auth/guards/jwt-auth.guard';
 import { RolesGuard } from 'src/modules/auth/guards/roles.guard';
 import { Roles } from 'src/common/decorators/roles.decorator';
@@ -62,13 +59,8 @@ export class FilesController {
   @Get(':id')
   @Roles('admin')
   async downloadFile(@Param('id') id: string, @Res() res: Response) {
-    const fileEntity = await this.filesService.findOne(Number(id));
-
-    if (!fs.existsSync(fileEntity.path)) {
-      throw new NotFoundException('Fiziki fayl diskdə tapılmadı!');
-    }
-
-    return res.sendFile(fileEntity.path);
+    const filePath = await this.filesService.getFilePathForDownload(Number(id));
+    return res.sendFile(filePath);
   }
 
   @Delete(':id')

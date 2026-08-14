@@ -19,7 +19,7 @@ export class AddressService {
   async create(userId: number, createAddressDto: CreateAddressDto) {
     const address = this.addressRepository.create({
       ...createAddressDto,
-      user: { id: userId },
+      user: { id: Number(userId) },
     });
     return this.addressRepository.save(address);
   }

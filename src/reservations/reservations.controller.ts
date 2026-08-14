@@ -18,8 +18,8 @@ export class ReservationsController {
     @Body() payReservationDto: PayReservationDto,
   ) {
     return this.reservationsService.payReservation(
-      Number(id),
-      Number(payReservationDto.userId),
+      id,
+      payReservationDto.userId,
     );
   }
 
