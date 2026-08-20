@@ -22,12 +22,16 @@ import {
 import { Address } from '../address/entities/address.entity';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { Queue } from 'bullmq';
+import { IdempotencyKeyEntity } from './entities/idempotency.entity';
+
 @Injectable()
 export class OrderService {
   private readonly idempotentyCache = new Map<string, any>();
   constructor(
     @InjectRepository(Order)
     private readonly orderRepository: Repository<Order>,
+    @InjectRepository(IdempotencyKeyEntity)
+    private readonly idempotencyRepository: Repository<IdempotencyKeyEntity>,
     private readonly dataSource: DataSource,
     private readonly eventEmitter: EventEmitter2,
     @InjectQueue('payment-queue') private readonly paymentQueue: Queue,
@@ -104,6 +108,7 @@ export class OrderService {
       await queryRunner.release();
     }
   }
+
   private scheduleStatusUpdates(orderId: number) {
     const delay = 5 * 1000;
 
@@ -140,29 +145,40 @@ export class OrderService {
       })();
     }, delay);
   }
+
   async payOrder(
     userId: number,
     orderId: number,
     idempotencyKey?: string,
   ): Promise<any> {
-    if (idempotencyKey && this.idempotentyCache.has(idempotencyKey)) {
-      return {
-        message:
-          'Bu ödəniş əməliyyatı artıq icra edilib (Idempotency-Key təkrarlandı).',
-        result: this.idempotentyCache.get(idempotencyKey),
-      };
+    if (idempotencyKey) {
+      const existingKey = await this.idempotencyRepository.findOne({
+        where: { key: idempotencyKey },
+      });
+
+      if (existingKey) {
+        return {
+          message:
+            'Bu ödəniş əməliyyatı artıq icra edilib (Idempotency-Key təkrarlandı).',
+          result: existingKey.response,
+        };
+      }
     }
+
     const order = await this.orderRepository.findOne({
       where: { id: orderId, user: { id: userId } },
     });
+
     if (!order) {
       throw new NotFoundException('Sifariş Tapılmadı!.');
     }
+
     if (order.status !== OrderStatus.PENDING) {
       throw new ConflictException(
         `Yalnız PENDING statusunda olan sifarişlər ödənilə bilər. Cari status: ${order.status}`,
       );
     }
+
     await this.paymentQueue.add(
       'process-payment',
       {
@@ -177,18 +193,20 @@ export class OrderService {
         },
       },
     );
+
     const responsePayload = {
       message: 'Ödəniş sorğusu növbəyə qəbul edildi, arxa fonda emal olunur.',
       orderId,
     };
+
     if (idempotencyKey) {
-      this.idempotentyCache.set(idempotencyKey, responsePayload);
+      await this.idempotencyRepository.save({
+        key: idempotencyKey,
+        response: responsePayload,
+      });
     }
-    order.status = OrderStatus.PAID;
-    const savedOrder = await this.orderRepository.save(order);
-    this.scheduleStatusUpdates(savedOrder.id);
-    this.eventEmitter.emit('order-paid', new OrderPaidEvent(order.id, userId));
-    return this.orderRepository.save(order);
+
+    return responsePayload;
   }
   async cancelOrder(userId: number, orderId: number): Promise<Order> {
     const queryRunner = this.dataSource.createQueryRunner();
@@ -219,6 +237,7 @@ export class OrderService {
       await queryRunner.release();
     }
   }
+
   async getUserOrders(userId: number): Promise<Order[]> {
     return this.orderRepository.find({
       where: { user: { id: userId } },

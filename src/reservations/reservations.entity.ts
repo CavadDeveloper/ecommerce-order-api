@@ -19,6 +19,10 @@ export class Reservation {
   userId!: number;
   @Column({ type: 'timestamp', nullable: true })
   expiresAt!: Date;
+  @Column()
+  productId!: number;
+  @Column()
+  quantity!: number;
   @CreateDateColumn()
   createdAt!: Date;
   @UpdateDateColumn()

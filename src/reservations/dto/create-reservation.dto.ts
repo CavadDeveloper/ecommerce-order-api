@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsNumber, IsObject } from 'class-validator';
+import { IsNotEmpty, IsNumber, Min } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class CreateReservationDto {
@@ -7,8 +7,14 @@ export class CreateReservationDto {
   @IsNotEmpty()
   userId!: number;
 
-  @ApiProperty({ example: { productId: 1, quantity: 2 } })
-  @IsObject()
+  @ApiProperty({ example: 1, description: 'Məhsul ID-si' })
+  @IsNumber()
   @IsNotEmpty()
-  details: any;
+  productId!: number;
+
+  @ApiProperty({ example: 1, description: 'Məhsul miqdarı' })
+  @IsNumber()
+  @Min(1)
+  @IsNotEmpty()
+  quantity!: number;
 }

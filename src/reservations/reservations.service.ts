@@ -9,7 +9,8 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { Reservation } from './reservations.entity';
 import { CreateReservationDto } from './dto/create-reservation.dto';
 import { Product } from 'src/modules/product/entities/product.entity';
-
+import { ReservationGateway } from 'src/modules/orders/events/reservations.gateway';
+import { OrderStatus } from 'src/modules/orders/enums/order-status.enum';
 @Injectable()
 export class ReservationsService {
   constructor(
@@ -19,24 +20,21 @@ export class ReservationsService {
     @InjectRepository(Product)
     private readonly productRepository: Repository<Product>,
     private readonly dataSource: DataSource,
+    private readonly reservationGateway: ReservationGateway,
   ) {}
 
   async create(
+    userId: number,
     createReservationDto: CreateReservationDto,
   ): Promise<Reservation> {
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
     try {
-      const dto = createReservationDto as Record<string, any>;
-      const userId: number = Number(dto.userId);
-      const productId: number = Number(dto.productId ?? dto.details?.productId);
-      const quantity: number = Number(
-        dto.quantity ?? dto.details?.quantity ?? 1,
-      );
+      const { productId, quantity } = createReservationDto;
 
       const existingActive = await queryRunner.manager.findOne(Reservation, {
-        where: { userId, status: 'Pending' },
+        where: { userId, status: 'PENDING' },
       });
       if (existingActive) {
         throw new NotFoundException('Sənin Artıq Aktiv Rezervasiyan Var!');
@@ -56,15 +54,15 @@ export class ReservationsService {
       product.stock -= quantity;
       await queryRunner.manager.save(product);
 
-      const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
+      const expiresAt = new Date(Date.now() + 20 * 1000);
 
       const reservation = queryRunner.manager.create(Reservation, {
         userId,
         productId,
         quantity,
-        status: 'Pending',
+        status: 'PENDING',
         expiresAt,
-      } as Partial<Reservation>);
+      });
 
       const savedReservation = await queryRunner.manager.save(reservation);
       await queryRunner.commitTransaction();
@@ -79,57 +77,132 @@ export class ReservationsService {
 
   async findActiveByUser(userId: number): Promise<Reservation> {
     const reservation = await this.reservationRepository.findOne({
-      where: { userId: Number(userId), status: 'Pending' },
+      where: { userId, status: 'PENDING' },
     });
     if (!reservation) {
-      throw new NotFoundException('Active rezervasiyası yoxdur bu userin!');
+      throw new NotFoundException('Aktiv rezervasiyan yoxdur!');
     }
     return reservation;
   }
 
-  async cancel(id: number): Promise<Reservation> {
-    const reservation = await this.reservationRepository.findOne({
-      where: { id: Number(id) },
-    });
+  async cancel(userId: number, id: number): Promise<Reservation> {
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
 
-    if (!reservation) {
-      throw new NotFoundException('Reservasiya tapılmadı!');
+    try {
+      const reservation = await queryRunner.manager.findOne(Reservation, {
+        where: { id, userId },
+        lock: { mode: 'pessimistic_write' },
+      });
+
+      if (!reservation) {
+        throw new NotFoundException('Rezervasiya tapılmadı!');
+      }
+
+      if (reservation.status !== 'PENDING') {
+        throw new BadRequestException(
+          'Bu Rezervasiya artıq ləğv edilib və ya bitib!',
+        );
+      }
+
+      reservation.status = 'CANCELLED';
+      const updated = await queryRunner.manager.save(Reservation, reservation);
+
+      const product = await queryRunner.manager.findOne(Product, {
+        where: { id: reservation.productId },
+        lock: { mode: 'pessimistic_write' },
+      });
+
+      if (product) {
+        product.stock += reservation.quantity;
+        await queryRunner.manager.save(Product, product);
+      }
+
+      await queryRunner.commitTransaction();
+      return updated;
+    } catch (err) {
+      await queryRunner.rollbackTransaction();
+      throw err;
+    } finally {
+      await queryRunner.release();
     }
-
-    reservation.status = 'CANCELLED';
-    const updated = await this.reservationRepository.save(reservation);
-
-    const resAny = reservation as Record<string, any>;
-    const product = await this.productRepository.findOne({
-      where: { id: resAny.productId },
-    });
-    if (product) {
-      product.stock += resAny.quantity ?? 1;
-      await this.productRepository.save(product);
-    }
-    return updated;
   }
 
-  async payReservation(id: number, userId: number): Promise<Reservation> {
-    const reservation = await this.reservationRepository.findOne({
-      where: { id: Number(id), userId: Number(userId) },
-    });
-    if (!reservation) {
-      throw new NotFoundException('Rezervasiya Tapılmadı');
-    }
-    if (reservation.status !== 'Pending') {
-      throw new NotFoundException('Bu Rezervasiya Artiq Aktiv Deyil!');
-    }
+  async payReservation(id: number, userId: number): Promise<any> {
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+    try {
+      const reservation = await queryRunner.manager.findOne(Reservation, {
+        where: { id, userId },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!reservation) {
+        throw new NotFoundException('Rezervasiya Tapılmadı!');
+      }
+      if (reservation.status === 'PAID') {
+        throw new BadRequestException(
+          'Bu rezervasiya artıq ödənilib və sifarişi yaradılıb!',
+        );
+      }
+      if (reservation.status !== 'PENDING') {
+        throw new BadRequestException('Bu Rezervasiya Artıq Aktiv Deyil!');
+      }
+      if (
+        reservation.expiresAt &&
+        new Date() > new Date(reservation.expiresAt)
+      ) {
+        reservation.status = 'EXPIRED';
+        await queryRunner.manager.save(Reservation, reservation);
+        throw new BadRequestException('Rezervasiyanın Vaxtı Bitib!');
+      }
 
-    const resExpiresAt = (reservation as Record<string, any>).expiresAt;
-    if (resExpiresAt && new Date() > new Date(resExpiresAt)) {
-      reservation.status = 'EXPIRED';
-      await this.reservationRepository.save(reservation);
-      throw new BadRequestException('Rezervasiyanın Vaxtı Bitib!');
-    }
+      reservation.status = 'PAID' as any;
+      await queryRunner.manager.save(Reservation, reservation);
 
-    reservation.status = 'PAID';
-    return await this.reservationRepository.save(reservation);
+      const product = await queryRunner.manager.findOne(Product, {
+        where: { id: reservation.productId },
+      });
+
+      const totalAmount = product
+        ? Number(product.price) * reservation.quantity
+        : 0;
+
+      const order = queryRunner.manager.create('Order', {
+        user: { id: userId },
+        status: OrderStatus.PAID,
+        totalAmount: totalAmount,
+        items: [
+          {
+            product: { id: reservation.productId },
+            productName: product?.name || 'Məhsul',
+            price: product ? Number(product.price) : 0,
+            quantity: reservation.quantity,
+          },
+        ],
+      });
+
+      const savedOrder = await queryRunner.manager.save('Order', order);
+      await queryRunner.commitTransaction();
+      const userRoom = `user_${userId}`;
+      this.reservationGateway.server.to(userRoom).emit('reservationPaid', {
+        message: 'Rezervasiyanız Uğurla Ödənildi və Sifariş Yaradıldı!',
+        reservation,
+        order: savedOrder,
+      });
+
+      return {
+        message: 'Rezervasiya Uğurla ödənildi və sifariş yaradıldı!',
+        reservation,
+        order: savedOrder,
+      };
+    } catch (err) {
+      await queryRunner.rollbackTransaction();
+      throw err;
+    } finally {
+      await queryRunner.release();
+    }
   }
 
   @Cron(CronExpression.EVERY_MINUTE)
@@ -137,22 +210,85 @@ export class ReservationsService {
     const now = new Date();
     const expiredReservations = await this.reservationRepository.find({
       where: {
-        status: 'Pending',
-        expiresAt: LessThan(now) as any,
+        status: 'PENDING',
+        expiresAt: LessThan(now),
       },
     });
-    for (const reservation of expiredReservations) {
-      reservation.status = 'EXPIRED';
-      await this.reservationRepository.save(reservation);
 
-      const resAny = reservation as Record<string, any>;
-      const product = await this.productRepository.findOne({
-        where: { id: resAny.productId },
+    for (const reservation of expiredReservations) {
+      const queryRunner = this.dataSource.createQueryRunner();
+      await queryRunner.connect();
+      await queryRunner.startTransaction();
+
+      try {
+        const freshReservation = await queryRunner.manager.findOne(
+          Reservation,
+          {
+            where: { id: reservation.id },
+            lock: { mode: 'pessimistic_write' },
+          },
+        );
+
+        if (!freshReservation || freshReservation.status !== 'PENDING') {
+          await queryRunner.rollbackTransaction();
+          continue;
+        }
+
+        freshReservation.status = 'EXPIRED';
+        await queryRunner.manager.save(Reservation, freshReservation);
+
+        const product = await queryRunner.manager.findOne(Product, {
+          where: { id: freshReservation.productId },
+          lock: { mode: 'pessimistic_write' },
+        });
+
+        if (product) {
+          product.stock += freshReservation.quantity;
+          await queryRunner.manager.save(Product, product);
+        }
+
+        await queryRunner.commitTransaction();
+      } catch (err) {
+        await queryRunner.rollbackTransaction();
+      } finally {
+        await queryRunner.release();
+      }
+    }
+  }
+  async cancelWithoutCheck(id: number): Promise<Reservation> {
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+    try {
+      const reservation = await queryRunner.manager.findOne(Reservation, {
+        where: { id },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!reservation) {
+        throw new NotFoundException('Rezervasiya Tapılmadı!');
+      }
+      if (reservation.status !== 'PENDING') {
+        throw new BadRequestException(
+          'Bu Rezervasiya artıq ləğv edilib və ya bitib!',
+        );
+      }
+      reservation.status = 'CANCELLED';
+      const updated = await queryRunner.manager.save(Reservation, reservation);
+      const product = await queryRunner.manager.findOne(Product, {
+        where: { id: reservation.productId },
+        lock: { mode: 'pessimistic_write' },
       });
       if (product) {
-        product.stock += resAny.quantity ?? 1;
-        await this.productRepository.save(product);
+        product.stock += reservation.quantity;
+        await queryRunner.manager.save(Product, product);
       }
+      await queryRunner.commitTransaction();
+      return updated;
+    } catch (err) {
+      await queryRunner.rollbackTransaction();
+      throw err;
+    } finally {
+      await queryRunner.release();
     }
   }
 }

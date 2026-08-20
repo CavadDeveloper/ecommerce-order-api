@@ -11,10 +11,17 @@ import { OrderItem } from './entities/order-item.entity';
 import { OrderListener } from './listeners/order.listeners';
 import { Product } from '../product/entities/product.entity';
 import { Cart } from '../cart/entities/cart.entity';
+import { IdempotencyKeyEntity } from './entities/idempotency.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Cart, Order, OrderItem, Product]),
+    TypeOrmModule.forFeature([
+      Cart,
+      Order,
+      OrderItem,
+      Product,
+      IdempotencyKeyEntity,
+    ]),
     BullModule.registerQueue({
       name: 'payment-queue',
     }),
