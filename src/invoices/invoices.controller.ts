@@ -45,8 +45,8 @@ export class InvoicesController {
     res.setHeader('Content-Type', 'text/plain');
     res.setHeader(
       'Content-Disposition',
-      `attachment; filename=invoice-${orderId}.txt`,
+      `attachment; filename=invoice-${invoiceData.filename}`,
     );
-    res.send(invoiceData);
+    res.send(invoiceData.content);
   }
 }

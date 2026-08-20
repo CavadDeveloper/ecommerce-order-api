@@ -8,6 +8,7 @@ import {
   Param,
   Res,
   UseGuards,
+  Body,
 } from '@nestjs/common';
 import { FilesService } from './files.service';
 import { FileEntity } from './files.entity';
@@ -17,6 +18,8 @@ import type { Response } from 'express';
 import { JwtAuthGuard } from 'src/modules/auth/guards/jwt-auth.guard';
 import { RolesGuard } from 'src/modules/auth/guards/roles.guard';
 import { Roles } from 'src/common/decorators/roles.decorator';
+import { FilePurpose } from './file-purpose.enum';
+import { CurrentUser } from 'src/common/decorators/current-user.decorator';
 
 @ApiTags('files')
 @ApiBearerAuth()
@@ -24,6 +27,7 @@ import { Roles } from 'src/common/decorators/roles.decorator';
 @Controller('files')
 export class FilesController {
   constructor(private readonly filesService: FilesService) {}
+
   @Post('upload')
   @ApiConsumes('multipart/form-data')
   @ApiBody({
@@ -33,6 +37,11 @@ export class FilesController {
         file: {
           type: 'string',
           format: 'binary',
+        },
+        purpose: {
+          type: 'string',
+          enum: Object.values(FilePurpose),
+          example: 'AVATAR',
         },
       },
     },
@@ -46,8 +55,11 @@ export class FilesController {
       size: number;
       buffer: Buffer;
     },
+    @Body('purpose') purpose: FilePurpose,
+    @CurrentUser() user: any,
   ): Promise<FileEntity> {
-    return await this.filesService.uploadFile(file);
+    const userId = user.userId || user.id;
+    return await this.filesService.uploadFile(file, purpose, userId);
   }
 
   @Get()
@@ -57,15 +69,31 @@ export class FilesController {
   }
 
   @Get(':id')
-  @Roles('admin')
-  async downloadFile(@Param('id') id: string, @Res() res: Response) {
-    const filePath = await this.filesService.getFilePathForDownload(Number(id));
+  async downloadFile(
+    @Param('id') id: string,
+    @Res() res: Response,
+    @CurrentUser() user: any,
+  ) {
+    const userId = user.userId || user.id;
+    const isAdmin = user.role === 'ADMIN';
+
+    const filePath = await this.filesService.getFilePathForDownload(
+      Number(id),
+      userId,
+      isAdmin,
+    );
     return res.sendFile(filePath);
   }
 
   @Delete(':id')
-  async deleteFile(@Param('id') id: string): Promise<{ message: string }> {
-    await this.filesService.deleteFileId(Number(id));
+  async deleteFile(
+    @Param('id') id: string,
+    @CurrentUser() user: any,
+  ): Promise<{ message: string }> {
+    const userId = user.userId || user.id;
+    const isAdmin = user.role === 'ADMIN';
+
+    await this.filesService.deleteFileId(Number(id), userId, isAdmin);
     return { message: 'Fayl Uğurla Silindi!' };
   }
 }

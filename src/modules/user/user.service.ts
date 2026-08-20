@@ -1,15 +1,18 @@
-import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from './entities/user.entity';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { FilePurpose } from 'src/files/file-purpose.enum';
+import { FilesService } from 'src/files/files.service';
 
 @Injectable()
 export class UserService {
   constructor(
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
+    private readonly filesService: FilesService,
   ) {}
 
   create(createUserDto: CreateUserDto) {
@@ -21,11 +24,14 @@ export class UserService {
   }
 
   findAll() {
-    return this.userRepository.find();
+    return this.userRepository.find({ relations: { avatar: true } });
   }
 
   async findOne(id: number) {
-    const user = await this.userRepository.findOne({ where: { id } });
+    const user = await this.userRepository.findOne({
+      where: { id },
+      relations: { avatar: true },
+    });
     if (!user) {
       throw new NotFoundException(`ID-si ${id} olan istifadəçi tapılmadı`);
     }
@@ -42,8 +48,32 @@ export class UserService {
 
     return this.findOne(id);
   }
+
   async remove(id: number) {
     const user = await this.findOne(id);
     return this.userRepository.remove(user);
+  }
+
+  async uploadAvatar(
+    userId: number,
+    file: {
+      originalname: string;
+      mimetype: string;
+      size: number;
+      buffer: Buffer;
+    },
+  ) {
+    const uploadFile = await this.filesService.uploadFile(
+      file,
+      FilePurpose.AVATAR,
+      userId,
+    );
+    await this.userRepository.update(userId, {
+      avatarId: uploadFile.id,
+    } as any);
+    return {
+      message: 'Avatar Uğurla Yeniləndi!',
+      file: uploadFile,
+    };
   }
 }

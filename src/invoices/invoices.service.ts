@@ -6,28 +6,70 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Order } from 'src/modules/orders/entities/order.entity';
+import { FilesService } from 'src/files/files.service';
+import { FilePurpose } from 'src/files/file-purpose.enum';
+import * as fs from 'fs/promises';
 
 @Injectable()
 export class InvoicesService {
   constructor(
     @InjectRepository(Order)
     private readonly orderRepository: Repository<Order>,
+    private readonly filesService: FilesService,
   ) {}
-  async downloadInvoice(orderId: string): Promise<string> {
+
+  async downloadInvoice(
+    orderId: string,
+  ): Promise<{ filename: string; content: string }> {
     const order = await this.orderRepository.findOne({
       where: { id: orderId as any },
       relations: { user: true } as any,
     });
+
     if (!order) {
       throw new NotFoundException('Sifarişin fakturası tapılmadı!');
     }
 
-    return `Sifarişin Qəbzi: ${orderId}`;
+    const invoiceContent = `========================================
+         RƏSMİ FAKTURA / INVOICE
+========================================
+Sifariş ID: ${order.id}
+Tarix: ${new Date().toISOString()}
+Müştəri ID: ${order.user ? order.user.id : 'N/A'}
+Müştəri Email: ${order.user ? order.user.email : 'N/A'}
+Status: ÖDƏNİLİB / SUCCESS
+========================================
+Təşəkkür edirik!`;
+
+    const buffer = Buffer.from(invoiceContent, 'utf-8');
+    const filename = `invoice-order-${order.id}-${Date.now()}.txt`;
+
+    const fileObject = {
+      originalname: filename,
+      mimetype: 'text/plain',
+      size: buffer.length,
+      buffer: buffer,
+    };
+
+    const userId = order.user ? Number(order.user.id) : 1;
+
+    const savedFile = await this.filesService.uploadFile(
+      fileObject,
+      FilePurpose.INVOICE,
+      userId,
+    );
+    const fileContent = await fs.readFile(savedFile.path, 'utf-8');
+
+    return {
+      filename: savedFile.originalname,
+      content: fileContent,
+    };
   }
+
   async validateAndGetInvoice(
     orderId: string,
     user: { userId: number; role: string },
-  ): Promise<string> {
+  ): Promise<{ filename: string; content: string }> {
     const order = await this.orderRepository.findOne({
       where: { id: Number(orderId) as any },
       relations: { user: true } as any,
