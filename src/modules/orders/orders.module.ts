@@ -22,9 +22,10 @@ import { IdempotencyKeyEntity } from './entities/idempotency.entity';
       Product,
       IdempotencyKeyEntity,
     ]),
-    BullModule.registerQueue({
-      name: 'payment-queue',
-    }),
+    BullModule.registerQueue(
+      { name: 'payment-queue' },
+      { name: 'email-queue' },
+    ),
     MailModule,
   ],
   controllers: [OrdersController],

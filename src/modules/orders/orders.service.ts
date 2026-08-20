@@ -35,6 +35,7 @@ export class OrderService {
     private readonly dataSource: DataSource,
     private readonly eventEmitter: EventEmitter2,
     @InjectQueue('payment-queue') private readonly paymentQueue: Queue,
+    @InjectQueue('email-queue') private readonly emailQueue: Queue,
   ) {}
 
   async checkout(
@@ -108,42 +109,43 @@ export class OrderService {
       await queryRunner.release();
     }
   }
+  async sendOrderConfirmationEmailJob(orderId: number, userEmail: string) {
+    const order = await this.orderRepository.findOne({
+      where: { id: orderId },
+      relations: {
+        items: { product: true },
+        address: true,
+      },
+    });
 
-  private scheduleStatusUpdates(orderId: number) {
-    const delay = 5 * 1000;
+    if (!order) return;
 
-    setTimeout(() => {
-      (async () => {
-        const order = await this.orderRepository.findOne({
-          where: { id: orderId },
-          relations: { user: true },
-        });
-        if (order && order.status === OrderStatus.PAID) {
-          order.status = OrderStatus.SHIPPED;
-          await this.orderRepository.save(order);
-          this.eventEmitter.emit(
-            'order-shipped',
-            new OrderShippedEvent(order.id, order.user.id),
-          );
-          setTimeout(() => {
-            (async () => {
-              const shippedOrder = await this.orderRepository.findOne({
-                where: { id: orderId },
-                relations: { user: true },
-              });
-              if (shippedOrder && shippedOrder.status === OrderStatus.SHIPPED) {
-                shippedOrder.status = OrderStatus.DELIVERED;
-                await this.orderRepository.save(shippedOrder);
-                this.eventEmitter.emit(
-                  'order-delivered',
-                  new OrderDeliveredEvent(order.id, order.user.id),
-                );
-              }
-            })();
-          }, delay);
-        }
-      })();
-    }, delay);
+    const orderDetails = {
+      orderId: order.id,
+      items: order.items.map((item) => ({
+        productName: item.productName,
+        quantity: item.quantity,
+        price: item.price,
+      })),
+      total: order.totalAmount,
+      address: order.address ? `${order.address.city},` : 'Qeyd olunmayıb',
+    };
+
+    await this.emailQueue.add(
+      'send-confirmation',
+      {
+        email: userEmail,
+        orderDetails,
+      },
+      {
+        attempts: 5,
+        backoff: {
+          type: 'exponential',
+          delay: 5000,
+        },
+        removeOnComplete: true,
+      },
+    );
   }
 
   async payOrder(
@@ -167,6 +169,7 @@ export class OrderService {
 
     const order = await this.orderRepository.findOne({
       where: { id: orderId, user: { id: userId } },
+      relations: { user: true },
     });
 
     if (!order) {
@@ -208,6 +211,7 @@ export class OrderService {
 
     return responsePayload;
   }
+
   async cancelOrder(userId: number, orderId: number): Promise<Order> {
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
