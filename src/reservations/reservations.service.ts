@@ -11,6 +11,14 @@ import { CreateReservationDto } from './dto/create-reservation.dto';
 import { Product } from 'src/modules/product/entities/product.entity';
 import { ReservationGateway } from 'src/modules/orders/events/reservations.gateway';
 import { OrderStatus } from 'src/modules/orders/enums/order-status.enum';
+import { Order } from 'src/modules/orders/entities/order.entity';
+
+export class PayReservationResponse {
+  message: string;
+  reservation: Reservation;
+  order: Order;
+}
+
 @Injectable()
 export class ReservationsService {
   constructor(
@@ -34,7 +42,7 @@ export class ReservationsService {
       const { productId, quantity } = createReservationDto;
 
       const existingActive = await queryRunner.manager.findOne(Reservation, {
-        where: { userId, status: 'PENDING' },
+        where: { userId, status: OrderStatus.PENDING },
       });
       if (existingActive) {
         throw new NotFoundException('Sənin Artıq Aktiv Rezervasiyan Var!');
@@ -60,7 +68,7 @@ export class ReservationsService {
         userId,
         productId,
         quantity,
-        status: 'PENDING',
+        status: OrderStatus.PENDING,
         expiresAt,
       });
 
@@ -77,7 +85,7 @@ export class ReservationsService {
 
   async findActiveByUser(userId: number): Promise<Reservation> {
     const reservation = await this.reservationRepository.findOne({
-      where: { userId, status: 'PENDING' },
+      where: { userId, status: OrderStatus.PENDING },
     });
     if (!reservation) {
       throw new NotFoundException('Aktiv rezervasiyan yoxdur!');
@@ -100,13 +108,13 @@ export class ReservationsService {
         throw new NotFoundException('Rezervasiya tapılmadı!');
       }
 
-      if (reservation.status !== 'PENDING') {
+      if (reservation.status !== OrderStatus.PENDING) {
         throw new BadRequestException(
           'Bu Rezervasiya artıq ləğv edilib və ya bitib!',
         );
       }
 
-      reservation.status = 'CANCELLED';
+      reservation.status = 'CANCELLED' as any;
       const updated = await queryRunner.manager.save(Reservation, reservation);
 
       const product = await queryRunner.manager.findOne(Product, {
@@ -129,7 +137,10 @@ export class ReservationsService {
     }
   }
 
-  async payReservation(id: number, userId: number): Promise<any> {
+  async payReservation(
+    id: number,
+    userId: number,
+  ): Promise<PayReservationResponse> {
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
@@ -141,24 +152,24 @@ export class ReservationsService {
       if (!reservation) {
         throw new NotFoundException('Rezervasiya Tapılmadı!');
       }
-      if (reservation.status === 'PAID') {
+      if (reservation.status === OrderStatus.PAID) {
         throw new BadRequestException(
           'Bu rezervasiya artıq ödənilib və sifarişi yaradılıb!',
         );
       }
-      if (reservation.status !== 'PENDING') {
+      if (reservation.status !== OrderStatus.PENDING) {
         throw new BadRequestException('Bu Rezervasiya Artıq Aktiv Deyil!');
       }
       if (
         reservation.expiresAt &&
         new Date() > new Date(reservation.expiresAt)
       ) {
-        reservation.status = 'EXPIRED';
+        reservation.status = 'EXPIRED' as any;
         await queryRunner.manager.save(Reservation, reservation);
         throw new BadRequestException('Rezervasiyanın Vaxtı Bitib!');
       }
 
-      reservation.status = 'PAID' as any;
+      reservation.status = OrderStatus.PAID;
       await queryRunner.manager.save(Reservation, reservation);
 
       const product = await queryRunner.manager.findOne(Product, {
@@ -169,8 +180,8 @@ export class ReservationsService {
         ? Number(product.price) * reservation.quantity
         : 0;
 
-      const order = queryRunner.manager.create('Order', {
-        user: { id: userId },
+      const order = queryRunner.manager.create(Order, {
+        user: { id: userId } as any,
         status: OrderStatus.PAID,
         totalAmount: totalAmount,
         items: [
@@ -180,11 +191,12 @@ export class ReservationsService {
             price: product ? Number(product.price) : 0,
             quantity: reservation.quantity,
           },
-        ],
+        ] as any,
       });
 
-      const savedOrder = await queryRunner.manager.save('Order', order);
+      const savedOrder = await queryRunner.manager.save(Order, order);
       await queryRunner.commitTransaction();
+
       const userRoom = `user_${userId}`;
       this.reservationGateway.server.to(userRoom).emit('reservationPaid', {
         message: 'Rezervasiyanız Uğurla Ödənildi və Sifariş Yaradıldı!',
@@ -210,7 +222,7 @@ export class ReservationsService {
     const now = new Date();
     const expiredReservations = await this.reservationRepository.find({
       where: {
-        status: 'PENDING',
+        status: 'PENDING' as any,
         expiresAt: LessThan(now),
       },
     });
@@ -229,12 +241,15 @@ export class ReservationsService {
           },
         );
 
-        if (!freshReservation || freshReservation.status !== 'PENDING') {
+        if (
+          !freshReservation ||
+          freshReservation.status !== OrderStatus.PENDING
+        ) {
           await queryRunner.rollbackTransaction();
           continue;
         }
 
-        freshReservation.status = 'EXPIRED';
+        freshReservation.status = OrderStatus.EXPIRED;
         await queryRunner.manager.save(Reservation, freshReservation);
 
         const product = await queryRunner.manager.findOne(Product, {
@@ -255,6 +270,7 @@ export class ReservationsService {
       }
     }
   }
+
   async cancelWithoutCheck(id: number): Promise<Reservation> {
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
@@ -267,12 +283,12 @@ export class ReservationsService {
       if (!reservation) {
         throw new NotFoundException('Rezervasiya Tapılmadı!');
       }
-      if (reservation.status !== 'PENDING') {
+      if (reservation.status !== OrderStatus.PENDING) {
         throw new BadRequestException(
           'Bu Rezervasiya artıq ləğv edilib və ya bitib!',
         );
       }
-      reservation.status = 'CANCELLED';
+      reservation.status = OrderStatus.CANCELLED;
       const updated = await queryRunner.manager.save(Reservation, reservation);
       const product = await queryRunner.manager.findOne(Product, {
         where: { id: reservation.productId },

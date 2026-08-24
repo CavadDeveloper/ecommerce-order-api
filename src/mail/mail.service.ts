@@ -1,5 +1,16 @@
 import { Injectable, Logger } from '@nestjs/common';
 import * as nodemailer from 'nodemailer';
+export interface OrderMailItem {
+  productName: string;
+  quantity: number;
+  price: number;
+}
+export interface MailOrderDetails {
+  orderId: number;
+  items: OrderMailItem[];
+  total: number;
+  address: string;
+}
 
 @Injectable()
 export class MailService {
@@ -14,8 +25,17 @@ export class MailService {
     });
   }
 
-  async sendOrderConfirmation(email: string, orderDetails: any) {
+  async sendOrderConfirmation(
+    email: string,
+    orderDetails: MailOrderDetails,
+  ): Promise<void> {
     const { orderId, items, total, address } = orderDetails;
+    const itemsHtml = items
+      .map(
+        (item) =>
+          `<li>${item.productName} - ${item.quantity} ədəd x ${item.price} AZN</li>`,
+      )
+      .join('');
 
     try {
       await this.transporter.sendMail({
@@ -25,7 +45,10 @@ export class MailService {
         html: `
           <h1>Sifarişiniz qəbul olundu!</h1>
           <p>Sifariş nömrəsi: <strong>${orderId}</strong></p>
-          <p>Məhsullar: ${items}</p>
+          <p><strong>Məhsullar:</strong></p>
+          <ul>
+            ${itemsHtml}
+          </ul>
           <p>Ümumi məbləğ: <strong>${total} AZN</strong></p>
           <p>Çatdırılma ünvanı: ${address}</p>
         `,

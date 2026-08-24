@@ -12,6 +12,7 @@ import {
   OrderPaidEvent,
   OrderShippedEvent,
 } from 'src/modules/orders/events/order.events';
+import { Logger } from '@nestjs/common';
 
 @WebSocketGateway({
   cors: {
@@ -19,15 +20,17 @@ import {
   },
 })
 export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
+  private readonly logger = new Logger(EventsGateway.name);
+
   @WebSocketServer()
   server: Server;
 
   handleConnection(client: Socket) {
-    console.log(`Klient qoşuldu: ${client.id}`);
+    this.logger.log(`Klient qoşuldu: ${client.id}`);
   }
 
   handleDisconnect(client: Socket) {
-    console.log(`Klient ayrıldı: ${client.id}`);
+    this.logger.log(`Klient ayrıldı: ${client.id}`);
   }
 
   @OnEvent('order-created')
@@ -39,10 +42,12 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
   handleOrderPaid(event: OrderPaidEvent) {
     this.server.emit('orderPaid', event);
   }
+
   @OnEvent('order-shipped')
   handleOrderShipped(event: OrderShippedEvent) {
     this.server.emit('orderShipped', event);
   }
+
   @OnEvent('order-delivered')
   handleOrderDelivered(event: OrderDeliveredEvent) {
     this.server.emit('orderDelivered', event);

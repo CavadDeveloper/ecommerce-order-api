@@ -4,12 +4,15 @@ import {
   OnGatewayConnection,
   OnGatewayDisconnect,
 } from '@nestjs/websockets';
+import { Logger } from '@nestjs/common';
 import { Server, Socket } from 'socket.io';
 import * as jwt from 'jsonwebtoken';
 @WebSocketGateway({ cors: { origin: '*' } })
 export class ReservationGateway
   implements OnGatewayConnection, OnGatewayDisconnect
 {
+  private readonly logger = new Logger(ReservationGateway.name);
+
   @WebSocketServer()
   server: Server;
   handleConnection(client: Socket) {
@@ -28,12 +31,12 @@ export class ReservationGateway
       const userId = payload.userId;
       const userRoom = `user_${userId}`;
       client.join(userRoom);
-      console.log(`İstifadəçi qoşuldu və otağa əlavə olundu:${userRoom}`);
+      this.logger.log(`İstifadəçi qoşuldu və otağa əlavə olundu:${userRoom}`);
     } catch (err) {
       client.disconnect();
     }
   }
   handleDisconnect(client: Socket) {
-    console.log(`İstifadəçi ayrıldı: ${client.id}`);
+    this.logger.log(`İstifadəçi ayrıldı: ${client.id}`);
   }
 }

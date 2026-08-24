@@ -15,7 +15,7 @@ export class UserService {
     private readonly filesService: FilesService,
   ) {}
 
-  create(createUserDto: CreateUserDto) {
+  async create(createUserDto: CreateUserDto): Promise<User> {
     const user = this.userRepository.create({
       ...createUserDto,
       role: createUserDto.role as any,
@@ -23,11 +23,11 @@ export class UserService {
     return this.userRepository.save(user);
   }
 
-  findAll() {
+  async findAll(): Promise<User[]> {
     return this.userRepository.find({ relations: { avatar: true } });
   }
 
-  async findOne(id: number) {
+  async findOne(id: number): Promise<User> {
     const user = await this.userRepository.findOne({
       where: { id },
       relations: { avatar: true },
@@ -38,7 +38,7 @@ export class UserService {
     return user;
   }
 
-  async update(id: number, updateUserDto: UpdateUserDto) {
+  async update(id: number, updateUserDto: UpdateUserDto): Promise<User> {
     await this.findOne(id);
 
     await this.userRepository.update(id, {
@@ -49,7 +49,7 @@ export class UserService {
     return this.findOne(id);
   }
 
-  async remove(id: number) {
+  async remove(id: number): Promise<User> {
     const user = await this.findOne(id);
     return this.userRepository.remove(user);
   }
@@ -62,7 +62,7 @@ export class UserService {
       size: number;
       buffer: Buffer;
     },
-  ) {
+  ): Promise<{ message: string; file: any }> {
     const uploadFile = await this.filesService.uploadFile(
       file,
       FilePurpose.AVATAR,
@@ -71,6 +71,7 @@ export class UserService {
     await this.userRepository.update(userId, {
       avatarId: uploadFile.id,
     } as any);
+
     return {
       message: 'Avatar Uğurla Yeniləndi!',
       file: uploadFile,

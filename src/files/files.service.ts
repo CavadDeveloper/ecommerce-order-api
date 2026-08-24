@@ -3,6 +3,7 @@ import {
   NotFoundException,
   BadRequestException,
   ForbiddenException,
+  Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -18,6 +19,7 @@ import * as crypto from 'crypto';
 @Injectable()
 export class FilesService {
   private readonly uploadDir = path.join(process.cwd(), 'uploads');
+  private readonly logger = new Logger(FilesService.name);
 
   constructor(
     @InjectRepository(FileEntity)
@@ -31,7 +33,7 @@ export class FilesService {
     try {
       await fs.mkdir(this.uploadDir, { recursive: true });
     } catch {
-      console.log('Upload qovluğu yaradıla bilmədi');
+      this.logger.error('Upload qovluğu yaradıla bilmədi');
     }
   }
 

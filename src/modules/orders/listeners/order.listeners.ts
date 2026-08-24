@@ -6,32 +6,34 @@ import {
   OrderShippedEvent,
   OrderDeliveredEvent,
 } from '../events/order.events';
+import { Logger } from '@nestjs/common';
 @Injectable()
 export class OrderListener {
+  private readonly logger = new Logger(OrderListener.name);
   constructor() {
-    console.log('Debug:Order Listener Ugurla Yuklenir');
+    this.logger.log('Debug:Order Listener Ugurla Yuklenir');
   }
   @OnEvent('order-created')
   handleOrderCreated(event: OrderCreatedEvent) {
-    console.log(
+    this.logger.log(
       `Sifariş Yaradıldı OrderId:${event.orderId} UserId:${event.userId} Məbləğ:${event.totalAmount}`,
     );
   }
   @OnEvent('order-paid')
   handleOrderPaid(event: OrderPaidEvent) {
-    console.log(
+    this.logger.log(
       `Sifariş Ödənildi! OrderId:${event.orderId} UserId:${event.userId}`,
     );
   }
   @OnEvent('order-shipped')
   handleOrderShipped(event: OrderShippedEvent) {
-    console.log(
+    this.logger.log(
       `Sifariş Yola Düşdü! OrderId:${event.orderId} UserId:${event.userId}`,
     );
   }
   @OnEvent('order-delivered')
   handleOrderDelivered(event: OrderDeliveredEvent) {
-    console.log(
+    this.logger.log(
       `Sifariş Çatdırıldı! OrderId:${event.orderId} UserId:${event.userId}`,
     );
   }

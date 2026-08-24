@@ -6,6 +6,7 @@ import {
   Body,
   Post,
   UseGuards,
+  Logger,
 } from '@nestjs/common';
 import { ReservationsService } from './reservations.service';
 import { CreateReservationDto } from './dto/create-reservation.dto';
@@ -16,6 +17,7 @@ import { ApiBearerAuth } from '@nestjs/swagger';
 @UseGuards(JwtAuthGuard)
 @Controller('reservations')
 export class ReservationsController {
+  private readonly logger = new Logger(ReservationsController.name);
   constructor(private readonly reservationsService: ReservationsService) {}
 
   @Post()
@@ -23,7 +25,7 @@ export class ReservationsController {
     @CurrentUser() user: any,
     @Body() createReservationDto: CreateReservationDto,
   ) {
-    console.log('TOKENDEN GELEN USER', user);
+    this.logger.log('TOKENDEN GELEN USER', user);
     return this.reservationsService.create(user.userId, createReservationDto);
   }
 

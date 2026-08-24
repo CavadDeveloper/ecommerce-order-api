@@ -10,6 +10,11 @@ import { FilesService } from 'src/files/files.service';
 import { FilePurpose } from 'src/files/file-purpose.enum';
 import * as fs from 'fs/promises';
 
+export interface InvoiceResult {
+  filename: string;
+  content: string;
+}
+
 @Injectable()
 export class InvoicesService {
   constructor(
@@ -18,12 +23,10 @@ export class InvoicesService {
     private readonly filesService: FilesService,
   ) {}
 
-  async downloadInvoice(
-    orderId: string,
-  ): Promise<{ filename: string; content: string }> {
+  async downloadInvoice(orderId: number): Promise<InvoiceResult> {
     const order = await this.orderRepository.findOne({
-      where: { id: orderId as any },
-      relations: { user: true } as any,
+      where: { id: orderId },
+      relations: { user: true },
     });
 
     if (!order) {
@@ -31,7 +34,7 @@ export class InvoicesService {
     }
 
     const invoiceContent = `========================================
-         RƏSMİ FAKTURA / INVOICE
+           RƏSMİ FAKTURA / INVOICE
 ========================================
 Sifariş ID: ${order.id}
 Tarix: ${new Date().toISOString()}
@@ -67,12 +70,14 @@ Təşəkkür edirik!`;
   }
 
   async validateAndGetInvoice(
-    orderId: string,
+    orderId: string | number,
     user: { userId: number; role: string },
-  ): Promise<{ filename: string; content: string }> {
+  ): Promise<InvoiceResult> {
+    const numericOrderId = Number(orderId);
+
     const order = await this.orderRepository.findOne({
-      where: { id: Number(orderId) as any },
-      relations: { user: true } as any,
+      where: { id: numericOrderId },
+      relations: { user: true },
     });
 
     if (!order || !order.user) {
@@ -83,6 +88,7 @@ Təşəkkür edirik!`;
     if (user && user.role !== 'ADMIN' && orderUserId !== Number(user.userId)) {
       throw new ForbiddenException('Bu fakturanı endirməyə icazəniz yoxdur.');
     }
-    return await this.downloadInvoice(orderId);
+
+    return await this.downloadInvoice(numericOrderId);
   }
 }

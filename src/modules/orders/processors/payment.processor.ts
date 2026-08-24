@@ -12,7 +12,6 @@ import { OrderPaidEvent } from '../events/order.events';
 @Processor('payment-queue')
 export class PaymentProcessor extends WorkerHost {
   private readonly logger = new Logger(PaymentProcessor.name);
-
   constructor(
     @InjectRepository(Order)
     private readonly orderRepository: Repository<Order>,
@@ -39,20 +38,28 @@ export class PaymentProcessor extends WorkerHost {
       relations: { user: true, address: true },
     });
 
-    console.log('TAPILAN ORDER VƏ ÜNVAN:', order);
+    this.logger.log('TAPILAN ORDER VƏ ÜNVAN:', order);
 
     if (order && order.status === OrderStatus.PENDING) {
       order.status = OrderStatus.PAID;
       await this.orderRepository.save(order);
       this.logger.log(`Sifariş #${orderId} uğurla ödənildi.`);
     }
+
     if (order?.user && order.user.email) {
       const fullAddress = order.address
         ? `${order.address.addressLine}, ${order.address.city}`
         : 'Göstərilməyib';
+
       await this.mailService.sendOrderConfirmation(order.user.email, {
         orderId: orderId,
-        items: 'Səbətdəki Məhsullar',
+        items: [
+          {
+            productName: 'Səbətdəki Ümumi Məhsullar',
+            quantity: 1,
+            price: order.totalAmount || 0,
+          },
+        ],
         total: order.totalAmount || 0,
         address: fullAddress,
       });

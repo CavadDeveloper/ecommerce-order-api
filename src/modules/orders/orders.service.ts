@@ -3,6 +3,7 @@ import {
   BadRequestException,
   NotFoundException,
   ConflictException,
+  Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
@@ -13,20 +14,20 @@ import { Cart } from '../cart/entities/cart.entity';
 import { Product } from '../product/entities/product.entity';
 import { OrderItem } from './entities/order-item.entity';
 import { OrderStatus } from './enums/order-status.enum';
-import {
-  OrderCreatedEvent,
-  OrderDeliveredEvent,
-  OrderPaidEvent,
-  OrderShippedEvent,
-} from './events/order.events';
+import { OrderCreatedEvent } from './events/order.events';
 import { Address } from '../address/entities/address.entity';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { Queue } from 'bullmq';
 import { IdempotencyKeyEntity } from './entities/idempotency.entity';
-
+export interface PayOrderResponse {
+  message: string;
+  orderId: number;
+  result?: any;
+}
 @Injectable()
 export class OrderService {
   private readonly idempotentyCache = new Map<string, any>();
+  private readonly logger = new Logger(OrderService.name);
   constructor(
     @InjectRepository(Order)
     private readonly orderRepository: Repository<Order>,
@@ -61,6 +62,7 @@ export class OrderService {
       for (const item of cart.items) {
         const product = await queryRunner.manager.findOne(Product, {
           where: { id: item.product.id },
+          lock: { mode: 'pessimistic_write' },
         });
         if (!product || product.stock < item.quantity) {
           throw new BadRequestException(
@@ -152,7 +154,7 @@ export class OrderService {
     userId: number,
     orderId: number,
     idempotencyKey?: string,
-  ): Promise<any> {
+  ): Promise<PayOrderResponse> {
     if (idempotencyKey) {
       const existingKey = await this.idempotencyRepository.findOne({
         where: { key: idempotencyKey },
@@ -162,6 +164,7 @@ export class OrderService {
         return {
           message:
             'Bu ödəniş əməliyyatı artıq icra edilib (Idempotency-Key təkrarlandı).',
+          orderId,
           result: existingKey.response,
         };
       }
@@ -235,7 +238,7 @@ export class OrderService {
       return updateOrder;
     } catch (err) {
       await queryRunner.rollbackTransaction();
-      console.log('CHECKOUT ERROR:', err);
+      this.logger.error('CHECKOUT ERROR:', err);
       throw err;
     } finally {
       await queryRunner.release();
