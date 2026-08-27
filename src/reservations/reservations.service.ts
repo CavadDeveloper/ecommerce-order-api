@@ -2,7 +2,9 @@ import {
   BadRequestException,
   Injectable,
   NotFoundException,
+  Logger,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource, LessThan } from 'typeorm';
 import { Cron, CronExpression } from '@nestjs/schedule';
@@ -21,14 +23,16 @@ export class PayReservationResponse {
 
 @Injectable()
 export class ReservationsService {
+  private readonly logger = new Logger(ReservationsService.name);
+
   constructor(
     @InjectRepository(Reservation)
     private readonly reservationRepository: Repository<Reservation>,
-
     @InjectRepository(Product)
     private readonly productRepository: Repository<Product>,
     private readonly dataSource: DataSource,
     private readonly reservationGateway: ReservationGateway,
+    private readonly configService: ConfigService,
   ) {}
 
   async create(
@@ -62,7 +66,11 @@ export class ReservationsService {
       product.stock -= quantity;
       await queryRunner.manager.save(product);
 
-      const expiresAt = new Date(Date.now() + 20 * 1000);
+      const ttlSeconds = this.configService.get<number>(
+        'RESERVATION_TTL_SECONDS',
+        20,
+      );
+      const expiresAt = new Date(Date.now() + ttlSeconds * 1000);
 
       const reservation = queryRunner.manager.create(Reservation, {
         userId,
@@ -77,6 +85,7 @@ export class ReservationsService {
       return savedReservation;
     } catch (err) {
       await queryRunner.rollbackTransaction();
+      this.logger.error('Rezervasiya yaradılarkən xəta baş verdi:', err);
       throw err;
     } finally {
       await queryRunner.release();
@@ -131,6 +140,10 @@ export class ReservationsService {
       return updated;
     } catch (err) {
       await queryRunner.rollbackTransaction();
+      this.logger.error(
+        `Rezervasiya ləğv edilərkən xəta baş verdi (ID: ${id}):`,
+        err,
+      );
       throw err;
     } finally {
       await queryRunner.release();
@@ -211,6 +224,10 @@ export class ReservationsService {
       };
     } catch (err) {
       await queryRunner.rollbackTransaction();
+      this.logger.error(
+        `Rezervasiya ödənilərkən xəta baş verdi (ID: ${id}):`,
+        err,
+      );
       throw err;
     } finally {
       await queryRunner.release();
@@ -265,6 +282,10 @@ export class ReservationsService {
         await queryRunner.commitTransaction();
       } catch (err) {
         await queryRunner.rollbackTransaction();
+        this.logger.error(
+          `Vaxtı bitmiş rezervasiya ləğv edilərkən xəta (ID: ${reservation.id}):`,
+          err,
+        );
       } finally {
         await queryRunner.release();
       }
@@ -302,6 +323,7 @@ export class ReservationsService {
       return updated;
     } catch (err) {
       await queryRunner.rollbackTransaction();
+      this.logger.error(`cancelWithoutCheck zamanı xəta (ID: ${id}):`, err);
       throw err;
     } finally {
       await queryRunner.release();

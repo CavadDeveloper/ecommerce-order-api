@@ -15,7 +15,7 @@ import * as fs from 'fs/promises';
 import * as fsSync from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
-
+import { ConfigService } from '@nestjs/config';
 @Injectable()
 export class FilesService {
   private readonly uploadDir = path.join(process.cwd(), 'uploads');
@@ -25,7 +25,10 @@ export class FilesService {
     @InjectRepository(FileEntity)
     private readonly fileRepository: Repository<FileEntity>,
     @InjectQueue('thumbnail-queue') private readonly thumbnailQueue: Queue,
+    private readonly configService: ConfigService,
   ) {
+    const folderName = this.configService.get<string>('UPLOAD_DEST', 'uploads');
+    this.uploadDir = path.join(process.cwd(), folderName);
     this.ensureUploadDirExists();
   }
 
@@ -51,7 +54,10 @@ export class FilesService {
       throw new BadRequestException('Fayl Təqdim Olunmayıb!');
     }
 
-    const maxSize = 5 * 1024 * 1024;
+    const maxSize = this.configService.get<number>(
+      'MAX_FILE_SIZE',
+      5 * 1024 * 1024,
+    );
     if (file.size > maxSize) {
       throw new BadRequestException('Faylın ölçüsü 5 MB-ni keçə bilməz!');
     }
@@ -108,7 +114,7 @@ export class FilesService {
     try {
       await fs.unlink(fileEntity.path);
     } catch (err) {
-      console.error('Fiziki fayl diskdən silinərkən xəta baş verdi', err);
+      this.logger.error('Fiziki fayl diskdən silinərkən xəta baş verdi', err);
     }
 
     await this.fileRepository.remove(fileEntity);

@@ -1,5 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import * as nodemailer from 'nodemailer';
+
 export interface OrderMailItem {
   productName: string;
   quantity: number;
@@ -17,10 +19,10 @@ export class MailService {
   private readonly logger = new Logger(MailService.name);
   private transporter: nodemailer.Transporter;
 
-  constructor() {
+  constructor(private readonly configService: ConfigService) {
     this.transporter = nodemailer.createTransport({
-      host: 'localhost',
-      port: 1025,
+      host: this.configService.get<string>('MAIL_HOST', 'localhost'),
+      port: this.configService.get<number>('MAIL_PORT', 1025),
       ignoreTLS: true,
     });
   }
@@ -37,9 +39,14 @@ export class MailService {
       )
       .join('');
 
+    const senderEmail = this.configService.get<string>(
+      'MAIL_FROM',
+      '"Shop Admin" <noreply@shop.com>',
+    );
+
     try {
       await this.transporter.sendMail({
-        from: '"Shop Admin" <noreply@shop.com>',
+        from: senderEmail,
         to: email,
         subject: `Sifariş Təsdiqi - #${orderId}`,
         html: `

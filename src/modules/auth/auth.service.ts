@@ -6,6 +6,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
+import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
 
 import { User } from '../user/entities/user.entity';
@@ -18,6 +19,7 @@ export class AuthService {
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
     private readonly jwtService: JwtService,
+    private readonly configService: ConfigService,
   ) {}
 
   async register(registerDto: RegisterDto) {
@@ -44,6 +46,7 @@ export class AuthService {
 
     return user;
   }
+
   async login(loginDto: LoginDto) {
     const { email, password } = loginDto;
 
@@ -69,16 +72,26 @@ export class AuthService {
       ...tokens,
     };
   }
+
   async getTokens(userId: number, email: string, role: string) {
     const payload = { sub: userId, email, role };
 
+    const accessSecret = this.configService.get<string>(
+      'JWT_ACCESS_SECRET',
+      'accessSecretKey',
+    );
+    const refreshSecret = this.configService.get<string>(
+      'JWT_REFRESH_SECRET',
+      'refreshSecretKey',
+    );
+
     const [accessToken, refreshToken] = await Promise.all([
       this.jwtService.signAsync(payload, {
-        secret: process.env.JWT_ACCESS_SECRET || 'accessSecretKey',
+        secret: accessSecret,
         expiresIn: '15m',
       }),
       this.jwtService.signAsync(payload, {
-        secret: process.env.JWT_REFRESH_SECRET || 'refreshSecretKey',
+        secret: refreshSecret,
         expiresIn: '7d',
       }),
     ]);
@@ -88,12 +101,14 @@ export class AuthService {
       refreshToken,
     };
   }
+
   async updateRefreshTokenHash(userId: number, refreshToken: string) {
     const hash = await bcrypt.hash(refreshToken, 10);
     await this.userRepository.update(userId, {
       currentHashedRefreshToken: hash,
     });
   }
+
   async refreshTokens(userId: number, refreshToken: string) {
     const user = await this.userRepository.findOne({ where: { id: userId } });
     if (!user || !user.currentHashedRefreshToken) {
