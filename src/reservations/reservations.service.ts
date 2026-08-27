@@ -102,7 +102,7 @@ export class ReservationsService {
     return reservation;
   }
 
-  async cancel(userId: number, id: number): Promise<Reservation> {
+  async cancel(id: number, userId: number): Promise<Reservation> {
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
@@ -123,7 +123,7 @@ export class ReservationsService {
         );
       }
 
-      reservation.status = 'CANCELLED' as any;
+      reservation.status = OrderStatus.CANCELLED;
       const updated = await queryRunner.manager.save(Reservation, reservation);
 
       const product = await queryRunner.manager.findOne(Product, {
@@ -177,7 +177,7 @@ export class ReservationsService {
         reservation.expiresAt &&
         new Date() > new Date(reservation.expiresAt)
       ) {
-        reservation.status = 'EXPIRED' as any;
+        reservation.status = OrderStatus.EXPIRED;
         await queryRunner.manager.save(Reservation, reservation);
         throw new BadRequestException('Rezervasiyanın Vaxtı Bitib!');
       }
@@ -194,7 +194,7 @@ export class ReservationsService {
         : 0;
 
       const order = queryRunner.manager.create(Order, {
-        user: { id: userId } as any,
+        user: { id: userId },
         status: OrderStatus.PAID,
         totalAmount: totalAmount,
         items: [
@@ -204,7 +204,7 @@ export class ReservationsService {
             price: product ? Number(product.price) : 0,
             quantity: reservation.quantity,
           },
-        ] as any,
+        ],
       });
 
       const savedOrder = await queryRunner.manager.save(Order, order);
@@ -239,7 +239,7 @@ export class ReservationsService {
     const now = new Date();
     const expiredReservations = await this.reservationRepository.find({
       where: {
-        status: 'PENDING' as any,
+        status: OrderStatus.PENDING,
         expiresAt: LessThan(now),
       },
     });

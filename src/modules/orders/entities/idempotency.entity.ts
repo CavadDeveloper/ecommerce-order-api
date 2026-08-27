@@ -6,5 +6,5 @@ export class IdempotencyKeyEntity {
   @CreateDateColumn()
   createdAt!: Date;
   @Column({ type: 'json' })
-  response!: any;
+  response!: Record<string, any>;
 }

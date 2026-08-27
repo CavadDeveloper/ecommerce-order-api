@@ -13,6 +13,13 @@ import { CreateReservationDto } from './dto/create-reservation.dto';
 import { CurrentUser } from 'src/common/decorators/current-user.decorator';
 import { JwtAuthGuard } from 'src/modules/auth/guards/jwt-auth.guard';
 import { ApiBearerAuth } from '@nestjs/swagger';
+
+interface CurrentUserDto {
+  userId: number;
+  email?: string;
+  roles?: string[];
+}
+
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
 @Controller('reservations')
@@ -22,7 +29,7 @@ export class ReservationsController {
 
   @Post()
   create(
-    @CurrentUser() user: any,
+    @CurrentUser() user: CurrentUserDto,
     @Body() createReservationDto: CreateReservationDto,
   ) {
     this.logger.log('TOKENDEN GELEN USER', user);
@@ -30,16 +37,17 @@ export class ReservationsController {
   }
 
   @Post(':id/pay')
-  async pay(@Param('id') id: number, @CurrentUser() user: any) {
+  async pay(@Param('id') id: number, @CurrentUser() user: CurrentUserDto) {
     return this.reservationsService.payReservation(Number(id), user.userId);
   }
+
   @Get('my-reservations')
-  findActiveByUser(@CurrentUser() user: any) {
+  findActiveByUser(@CurrentUser() user: CurrentUserDto) {
     return this.reservationsService.findActiveByUser(Number(user.userId));
   }
 
   @Delete(':id/cancel')
-  cancel(@Param('id') id: number, @CurrentUser() user: any) {
+  cancel(@Param('id') id: number, @CurrentUser() user: CurrentUserDto) {
     return this.reservationsService.cancel(Number(id), user.userId);
   }
 }

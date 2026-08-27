@@ -21,6 +21,12 @@ import { Roles } from 'src/common/decorators/roles.decorator';
 import { FilePurpose } from './file-purpose.enum';
 import { CurrentUser } from 'src/common/decorators/current-user.decorator';
 
+interface CurrentUserDto {
+  userId?: number;
+  id?: number;
+  role: string;
+}
+
 @ApiTags('files')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -48,17 +54,11 @@ export class FilesController {
   })
   @UseInterceptors(FileInterceptor('file'))
   async uploadFile(
-    @UploadedFile()
-    file: {
-      originalname: string;
-      mimetype: string;
-      size: number;
-      buffer: Buffer;
-    },
+    @UploadedFile() file: Express.Multer.File,
     @Body('purpose') purpose: FilePurpose,
-    @CurrentUser() user: any,
+    @CurrentUser() user: CurrentUserDto,
   ): Promise<FileEntity> {
-    const userId = user.userId || user.id;
+    const userId = user.userId || user.id!;
     return await this.filesService.uploadFile(file, purpose, userId);
   }
 
@@ -72,9 +72,9 @@ export class FilesController {
   async downloadFile(
     @Param('id') id: string,
     @Res() res: Response,
-    @CurrentUser() user: any,
+    @CurrentUser() user: CurrentUserDto,
   ) {
-    const userId = user.userId || user.id;
+    const userId = user.userId || user.id!;
     const isAdmin = user.role === 'ADMIN';
 
     const filePath = await this.filesService.getFilePathForDownload(
@@ -88,9 +88,9 @@ export class FilesController {
   @Delete(':id')
   async deleteFile(
     @Param('id') id: string,
-    @CurrentUser() user: any,
+    @CurrentUser() user: CurrentUserDto,
   ): Promise<{ message: string }> {
-    const userId = user.userId || user.id;
+    const userId = user.userId || user.id!;
     const isAdmin = user.role === 'ADMIN';
 
     await this.filesService.deleteFileId(Number(id), userId, isAdmin);

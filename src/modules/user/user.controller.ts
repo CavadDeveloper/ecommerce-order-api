@@ -20,12 +20,20 @@ import { ApiBearerAuth, ApiBody, ApiConsumes, ApiTags } from '@nestjs/swagger';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { CurrentUser } from 'src/common/decorators/current-user.decorator';
 
+interface CurrentUserDto {
+  userId?: number;
+  id?: number;
+  role?: string;
+  roles?: string[];
+}
+
 @Controller('user')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @ApiTags('User')
 @ApiBearerAuth()
 export class UserController {
   constructor(private readonly userService: UserService) {}
+
   @Post('avatar')
   @ApiConsumes('multipart/form-data')
   @ApiBody({
@@ -48,9 +56,9 @@ export class UserController {
       size: number;
       buffer: Buffer;
     },
-    @CurrentUser() user: any,
+    @CurrentUser() user: CurrentUserDto,
   ) {
-    const userId = user.userId || user.id;
+    const userId = user.userId || user.id!;
     return await this.userService.uploadAvatar(userId, file);
   }
 

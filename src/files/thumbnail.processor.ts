@@ -5,6 +5,11 @@ import sharp from 'sharp';
 import * as path from 'path';
 import * as fs from 'fs/promises';
 
+export interface ThumbnailResult {
+  success: boolean;
+  thumbnailPath: string;
+}
+
 @Processor('thumbnail-queue')
 export class ThumbnailProcessor extends WorkerHost {
   private readonly logger = new Logger(ThumbnailProcessor.name);
@@ -16,7 +21,7 @@ export class ThumbnailProcessor extends WorkerHost {
 
   async process(
     job: Job<{ filePath: string; filename: string }>,
-  ): Promise<any> {
+  ): Promise<ThumbnailResult> {
     const { filePath, filename } = job.data;
     this.logger.log(`Thumbnail yaradılması başladı: ${filename}`);
 

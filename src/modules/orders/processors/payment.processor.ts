@@ -9,6 +9,10 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { MailService } from 'src/mail/mail.service';
 import { OrderPaidEvent } from '../events/order.events';
 
+export interface PaymentResult {
+  success: boolean;
+  orderId: number;
+}
 @Processor('payment-queue')
 export class PaymentProcessor extends WorkerHost {
   private readonly logger = new Logger(PaymentProcessor.name);
@@ -20,8 +24,9 @@ export class PaymentProcessor extends WorkerHost {
   ) {
     super();
   }
-
-  async process(job: Job<{ orderId: number; userId: number }>): Promise<any> {
+  async process(
+    job: Job<{ orderId: number; userId: number }>,
+  ): Promise<PaymentResult> {
     const { orderId, userId } = job.data;
     this.logger.log(`Sifariş #${orderId} üçün ödəniş simulyasiyası başladı...`);
 

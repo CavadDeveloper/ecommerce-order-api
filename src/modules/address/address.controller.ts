@@ -9,6 +9,7 @@ import {
   UseGuards,
   Req,
 } from '@nestjs/common';
+import { Request } from 'express';
 import { AddressService } from './address.service';
 import { CreateAddressDto } from './dto/create-address.dto';
 import { UpdateAddressDto } from './dto/update-address.dto';
@@ -16,6 +17,15 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from 'src/common/decorators/roles.decorator';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+
+interface RequestUser {
+  userId: number;
+  roles: string[];
+}
+
+interface RequestWithUser extends Request {
+  user: RequestUser;
+}
 
 @ApiTags('Address')
 @ApiBearerAuth()
@@ -25,7 +35,10 @@ export class AddressController {
   constructor(private readonly addressService: AddressService) {}
 
   @Post()
-  create(@Req() req: any, @Body() createAddressDto: CreateAddressDto) {
+  create(
+    @Req() req: RequestWithUser,
+    @Body() createAddressDto: CreateAddressDto,
+  ) {
     const userId = req.user.userId;
     return this.addressService.create(userId, createAddressDto);
   }
@@ -38,20 +51,20 @@ export class AddressController {
 
   @Roles('ADMIN')
   @Get(':id')
-  findOne(@Req() req: any, @Param('id') id: string) {
+  findOne(@Req() req: RequestWithUser, @Param('id') id: string) {
     const userId = req.user.userId;
-    const userRole = req.user.roles;
+    const userRole = req.user.roles[0];
     return this.addressService.findOne(Number(id), userId, userRole);
   }
 
   @Patch(':id')
   update(
-    @Req() req: any,
+    @Req() req: RequestWithUser,
     @Param('id') id: string,
     @Body() updateAddressDto: UpdateAddressDto,
   ) {
     const userId = req.user.userId;
-    const userRole = req.user.roles;
+    const userRole = req.user.roles[0];
     return this.addressService.update(
       Number(id),
       updateAddressDto,
@@ -61,9 +74,9 @@ export class AddressController {
   }
 
   @Delete(':id')
-  remove(@Req() req: any, @Param('id') id: string) {
+  remove(@Req() req: RequestWithUser, @Param('id') id: string) {
     const userId = req.user.userId;
-    const userRole = req.user.roles;
+    const userRole = req.user.roles[0];
     return this.addressService.remove(Number(id), userId, userRole);
   }
 }
